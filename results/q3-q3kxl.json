@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "evidence_label": "measured validation gate",
+  "hardware": "one NVIDIA GB10 system with 128 GB unified memory",
+  "model": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "8bdc666649440e9bdc97e16f3f75782c98478ff5",
+    "quantization": "UD-Q3_K_XL",
+    "verified_bytes": 89986353824
+  },
+  "runtime": {
+    "implementation": "llama.cpp PR #27742",
+    "commit": "bea3b12daee45876b0129a3602dc8f534ce30bf0",
+    "cuda_architecture": "SM121"
+  },
+  "validation": {
+    "status": "passed",
+    "request_rows": 10,
+    "input_tokens": [512, 32000],
+    "concurrency": [1, 8],
+    "output_tokens_per_request": 256,
+    "all_finish_reasons": "length",
+    "temperature": 0.0
+  },
+  "metric_definition": "end_to_end_completion_tokens_per_second is completion tokens divided by request wall time; aggregate_completion_tokens_per_second is total batch completion tokens divided by batch wall time; both include prompt processing",
+  "selected_rows": [
+    {
+      "input_tokens": 512,
+      "concurrency": 1,
+      "end_to_end_completion_tokens_per_second": 23.163765488433878,
+      "ttft_seconds": 1.8366147299966542,
+      "server_decode_tokens_per_second": 27.668709413122805
+    },
+    {
+      "input_tokens": 32000,
+      "concurrency": 1,
+      "end_to_end_completion_tokens_per_second": 2.4185425173854576,
+      "ttft_seconds": 93.2844979520014,
+      "server_decode_tokens_per_second": 20.296790010922855
+    },
+    {
+      "input_tokens": 32000,
+      "concurrency": 8,
+      "batch_wall_seconds": 787.4103174060001,
+      "aggregate_completion_tokens_per_second": 2.6009311215870463,
+      "completed_requests": 8
+    }
+  ],
+  "paired_quality": {
+    "fixed_cases": 4,
+    "passed": 4,
+    "exact_q1_output_matches": 4,
+    "categories": ["coding", "structured_json_tool_arguments", "instruction_following", "reasoning"]
+  },
+  "safety": {
+    "minimum_mem_available_bytes": 17894166528,
+    "maximum_service_swap_bytes": 0,
+    "host_swap_growth_bytes": 74678272,
+    "safety_incident": false
+  },
+  "scope_note": "This was a short fit, safety, and paired-quality validation. It was not a full Q3 performance sweep."
+}

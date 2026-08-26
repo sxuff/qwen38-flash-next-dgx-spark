@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST_PATH = ROOT / "manifests" / "q1-iq1s.json"
+DEFAULT_MANIFEST_PATH = ROOT / "manifests" / "q1-iq1s.json"
 CHUNK_BYTES = 8 * 1024 * 1024
 
 
@@ -62,13 +62,15 @@ def download(url: str, partial: Path, expected_bytes: int, token: str | None) ->
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download and verify the pinned UD-IQ1_S GGUF")
+    parser = argparse.ArgumentParser(description="Download and verify a pinned GGUF profile")
     parser.add_argument("--destination", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
     parser.add_argument("--verify-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    manifest = json.loads(MANIFEST_PATH.read_text())
+    manifest_path = args.manifest.expanduser().resolve()
+    manifest = json.loads(manifest_path.read_text())
     if sum(item["bytes"] for item in manifest["files"]) != manifest["total_bytes"]:
         raise SystemExit("invalid manifest total")
 

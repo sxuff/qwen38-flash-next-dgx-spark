@@ -12,6 +12,14 @@ assert len(manifest["files"]) == 3
 assert sum(item["bytes"] for item in manifest["files"]) == manifest["total_bytes"] == 72546461344
 assert all(len(item["sha256"]) == 64 for item in manifest["files"])
 
+q3_revision = "8bdc666649440e9bdc97e16f3f75782c98478ff5"
+q3_manifest = json.loads((ROOT / "manifests/q3-q3kxl.json").read_text())
+assert q3_manifest["revision"] == q3_revision
+assert q3_manifest["quantization"] == "UD-Q3_K_XL"
+assert len(q3_manifest["files"]) == 3
+assert sum(item["bytes"] for item in q3_manifest["files"]) == q3_manifest["total_bytes"] == 89986353824
+assert all(len(item["sha256"]) == 64 for item in q3_manifest["files"])
+
 results = json.loads((ROOT / "results/q1-iq1s.json").read_text())
 assert results["model"]["revision"] == MODEL_REVISION
 assert results["runtime"]["commit"] == LLAMA_COMMIT
@@ -21,6 +29,16 @@ assert results["sweep"]["request_rows"] == 120
 assert results["sweep"]["cold_warm_pairs"] == 60
 assert results["safety"]["safety_incident"] is False
 assert results["safety"]["maximum_service_swap_bytes"] == 0
+
+q3_results = json.loads((ROOT / "results/q3-q3kxl.json").read_text())
+assert q3_results["model"]["revision"] == q3_revision
+assert q3_results["runtime"]["commit"] == LLAMA_COMMIT
+assert q3_results["validation"]["status"] == "passed"
+assert q3_results["validation"]["request_rows"] == 10
+assert q3_results["paired_quality"]["passed"] == 4
+assert q3_results["paired_quality"]["exact_q1_output_matches"] == 4
+assert q3_results["safety"]["safety_incident"] is False
+assert q3_results["safety"]["maximum_service_swap_bytes"] == 0
 
 readme = (ROOT / "README.md").read_text()
 build = (ROOT / "scripts/build_llama.sh").read_text()
@@ -32,7 +50,7 @@ all_public_text = "\n".join(
     if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts
 )
 
-for required in (MODEL_REVISION, LLAMA_COMMIT, "121a-real", "UD-IQ1_S"):
+for required in (MODEL_REVISION, q3_revision, LLAMA_COMMIT, "121a-real", "UD-IQ1_S", "UD-Q3_K_XL"):
     assert required in readme or required in build
 for required_flag in ("--no-kv-unified", "-ub 64", "-ngl 99", "--no-context-shift", "--host 127.0.0.1"):
     assert required_flag in server

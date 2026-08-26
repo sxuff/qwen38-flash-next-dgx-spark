@@ -1,6 +1,6 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A pinned, checksum-verified recipe for serving `unsloth/Qwen3.8-Flash-Next-GGUF` `UD-IQ1_S` on one NVIDIA GB10 system with llama.cpp.
+A pinned, checksum-verified recipe for serving `unsloth/Qwen3.8-Flash-Next-GGUF` on one NVIDIA GB10 system with llama.cpp. Two exercised profiles are included: `UD-IQ1_S` and `UD-Q3_K_XL`.
 
 This repository contains scripts and measured results. It does not contain model weights.
 
@@ -10,6 +10,8 @@ This repository contains scripts and measured results. It does not contain model
 - Model: `unsloth/Qwen3.8-Flash-Next-GGUF`
 - Quantization: `UD-IQ1_S`, 3 GGUF shards, 72,546,461,344 bytes
 - Model revision: `d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249`
+- Q3 profile: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
+- Q3 model revision: `8bdc666649440e9bdc97e16f3f75782c98478ff5`
 - Runtime: llama.cpp PR [#27742](https://github.com/ggml-org/llama.cpp/pull/27742), commit `bea3b12daee45876b0129a3602dc8f534ce30bf0`
 - CUDA target: SM121 (`121a-real` in this pinned llama.cpp build)
 - API: OpenAI-compatible llama.cpp server on `127.0.0.1:8001`
@@ -56,6 +58,14 @@ python3 scripts/download_model.py \
 
 For authenticated Hub access, export `HF_TOKEN` in the shell. Do not put tokens in command arguments or unit files.
 
+To use the separately verified Q3 profile instead:
+
+```bash
+python3 scripts/download_model.py \
+  --manifest manifests/q3-q3kxl.json \
+  --destination "$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944"
+```
+
 ## 3. Build the pinned llama.cpp revision
 
 ```bash
@@ -72,6 +82,15 @@ bash scripts/install_service.sh \
   "$HOME/src/llama.cpp-qwen38-flash-next"
 
 systemctl --user enable --now qwen38-flash-next-llama.service
+```
+
+For Q3, select its profile during installation:
+
+```bash
+bash scripts/install_service.sh \
+  "$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944" \
+  "$HOME/src/llama.cpp-qwen38-flash-next" \
+  q3-q3kxl
 ```
 
 The service binds localhost only, disables host swap for its cgroup, caps memory at 110 GiB, and uses these measured controls:
@@ -129,6 +148,19 @@ At concurrency 1, observed cold TTFT was 1.63, 9.62, 39.69, and 86.06 seconds at
 “End-to-end completion throughput” is total completion tokens divided by batch wall time. It includes prompt processing and is not per-request decode speed. Values shown are observed measurements from eligible batches. During the full sweep, minimum host `MemAvailable` was 64,950,276,096 bytes, service swap stayed at 0 bytes, and host swap grew by 29,167,616 bytes.
 
 Machine-readable qualifiers and these selected rows are in [`results/q1-iq1s.json`](results/q1-iq1s.json).
+
+## Measured Q3 validation
+
+The Q3 profile passed a short fit, safety, and paired-quality gate under the same runtime controls. This was not a full performance sweep. All 10 performance requests used exact input denominators and generated exactly 256 tokens with `finish_reason: length`.
+
+| Input | Concurrency | End-to-end completion throughput | TTFT | Server decode throughput |
+|---:|---:|---:|---:|---:|
+| 512 | 1 | 23.16 tok/s | 1.84 s | 27.67 tok/s |
+| 32,000 | 1 | 2.42 tok/s | 93.28 s | 20.30 tok/s |
+
+The 32K × 8 fit gate completed all eight requests in 787.41 seconds at 2.60 aggregate completion tok/s. The four-case deterministic quality corpus covered coding, structured tool arguments, instruction following, and reasoning. Q3 passed 4/4 cases and matched the recorded Q1 outputs exactly in 4/4 cases.
+
+During this validation, minimum host `MemAvailable` was 17,894,166,528 bytes, service swap stayed at 0 bytes, and host swap grew by 74,678,272 bytes. Machine-readable qualifiers are in [`results/q3-q3kxl.json`](results/q3-q3kxl.json).
 
 ## Safety and troubleshooting
 

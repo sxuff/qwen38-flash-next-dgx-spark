@@ -3,15 +3,22 @@ set -euo pipefail
 
 model_root="${1:-}"
 llama_root="${2:-}"
+profile="${3:-q1-iq1s}"
 [[ -n "$model_root" && -n "$llama_root" ]] || {
-  printf 'usage: %s MODEL_ROOT LLAMA_ROOT\n' "$0" >&2
+  printf 'usage: %s MODEL_ROOT LLAMA_ROOT [q1-iq1s|q3-q3kxl]\n' "$0" >&2
   exit 2
 }
 model_root="$(realpath "$model_root")"
 llama_root="$(realpath "$llama_root")"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-python3 "$repo_root/scripts/download_model.py" --destination "$model_root" --verify-only
+case "$profile" in
+  q1-iq1s|q3-q3kxl) ;;
+  *) printf 'error: unknown profile: %s\n' "$profile" >&2; exit 2 ;;
+esac
+manifest="$repo_root/manifests/$profile.json"
+python3 "$repo_root/scripts/download_model.py" --manifest "$manifest" --destination "$model_root" --verify-only
+model_entry="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["files"][0]["path"])' "$manifest")"
 [[ -x "$llama_root/build-gb10-pr27742/bin/llama-server" ]] || {
   printf 'error: pinned llama-server binary is missing\n' >&2
   exit 1
@@ -25,6 +32,7 @@ install -m 0644 "$repo_root/systemd/qwen38-flash-next-llama.service" "$HOME/.con
 {
   printf 'MODEL_ROOT=%q\n' "$model_root"
   printf 'LLAMA_ROOT=%q\n' "$llama_root"
+  printf 'MODEL_ENTRY=%q\n' "$model_entry"
 } > "$HOME/.config/qwen38-flash-next/server.env"
 chmod 0600 "$HOME/.config/qwen38-flash-next/server.env"
 

@@ -5,7 +5,7 @@ set -euo pipefail
 : "${LLAMA_ROOT:?LLAMA_ROOT is required}"
 
 binary="$LLAMA_ROOT/build-gb10-pr27742/bin/llama-server"
-model="$MODEL_ROOT/UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00001-of-00003.gguf"
+model="$MODEL_ROOT/${MODEL_ENTRY:-UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00001-of-00003.gguf}"
 
 [[ "$(uname -m)" == "aarch64" ]] || { printf 'aarch64 required\n' >&2; exit 1; }
 command -v nvidia-smi >/dev/null
