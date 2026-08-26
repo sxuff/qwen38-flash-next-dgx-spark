@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+  "revision": "d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249",
+  "quantization": "UD-IQ1_S",
+  "total_bytes": 72546461344,
+  "reserve_bytes": 10737418240,
+  "files": [
+    {
+      "path": "UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00001-of-00003.gguf",
+      "bytes": 10946624,
+      "sha256": "88a1420825a9304063e882ada29d438263617f51ac8923d438d927496693bafd"
+    },
+    {
+      "path": "UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00002-of-00003.gguf",
+      "bytes": 49990818368,
+      "sha256": "3a62e35bbf9add4733bd1438ebd3a67649d5edd6cb0e72bb78e33c913992b2b6"
+    },
+    {
+      "path": "UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00003-of-00003.gguf",
+      "bytes": 22544696352,
+      "sha256": "0e25ceaeb89b8a80aa973c6c0c7448943682f7408c2855b2ebd016b7643a861a"
+    }
+  ]
+}

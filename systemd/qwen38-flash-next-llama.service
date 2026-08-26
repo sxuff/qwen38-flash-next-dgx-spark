@@ -1,0 +1,20 @@
+[Unit]
+Description=Qwen3.8 Flash-Next llama.cpp server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/qwen38-flash-next/server.env
+ExecStart=%h/.local/lib/qwen38-flash-next/run_server.sh
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+MemoryMax=110G
+MemorySwapMax=0
+LimitNOFILE=1048576
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

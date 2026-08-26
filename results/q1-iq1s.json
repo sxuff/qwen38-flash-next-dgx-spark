@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "evidence_label": "measured",
+  "hardware": "one NVIDIA GB10 system with 128 GB unified memory",
+  "model": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249",
+    "quantization": "UD-IQ1_S",
+    "verified_bytes": 72546461344
+  },
+  "runtime": {
+    "implementation": "llama.cpp PR #27742",
+    "commit": "bea3b12daee45876b0129a3602dc8f534ce30bf0",
+    "cuda_architecture": "SM121"
+  },
+  "sweep": {
+    "status": "passed",
+    "batches": 32,
+    "request_rows": 120,
+    "cold_warm_pairs": 60,
+    "input_tokens": [512, 4000, 16000, 32000],
+    "concurrency": [1, 2, 4, 8],
+    "output_tokens_per_request": 256,
+    "repetitions_per_cell": 1,
+    "temperature": 0.0,
+    "seed": 42,
+    "cold_cache_prompt": false,
+    "warm_cache_prompt": true
+  },
+  "metric_definition": "aggregate_completion_tokens_per_second is total completion tokens divided by batch wall time and includes prompt processing",
+  "selected_rows": [
+    {"input_tokens":512,"concurrency":1,"cold":{"aggregate_completion_tokens_per_second":23.073885122635783,"ttft_seconds":1.6287794610107085},"warm":{"aggregate_completion_tokens_per_second":26.597283170738976,"ttft_seconds":0.10652594600105658}},
+    {"input_tokens":512,"concurrency":8,"cold":{"aggregate_completion_tokens_per_second":65.01030973280416},"warm":{"aggregate_completion_tokens_per_second":93.93041323942103}},
+    {"input_tokens":4000,"concurrency":1,"cold":{"aggregate_completion_tokens_per_second":13.086369055252392,"ttft_seconds":9.61615615899791},"warm":{"aggregate_completion_tokens_per_second":25.355664259135366,"ttft_seconds":0.11077756099984981}},
+    {"input_tokens":4000,"concurrency":8,"cold":{"aggregate_completion_tokens_per_second":20.10367068694006},"warm":{"aggregate_completion_tokens_per_second":82.80218129554575}},
+    {"input_tokens":16000,"concurrency":1,"cold":{"aggregate_completion_tokens_per_second":5.038834558742891,"ttft_seconds":39.68719951400999},"warm":{"aggregate_completion_tokens_per_second":22.740470338111738,"ttft_seconds":0.12001390400109813}},
+    {"input_tokens":16000,"concurrency":8,"cold":{"aggregate_completion_tokens_per_second":5.798008354349888},"warm":{"aggregate_completion_tokens_per_second":52.405419041052035}},
+    {"input_tokens":32000,"concurrency":1,"cold":{"aggregate_completion_tokens_per_second":2.5993138695150604,"ttft_seconds":86.0648942150001},"warm":{"aggregate_completion_tokens_per_second":20.459129656550175,"ttft_seconds":0.127535995998187}},
+    {"input_tokens":32000,"concurrency":8,"cold":{"aggregate_completion_tokens_per_second":2.778902559013441},"warm":{"aggregate_completion_tokens_per_second":35.26284551992665}}
+  ],
+  "safety": {
+    "minimum_mem_available_bytes": 64950276096,
+    "maximum_service_swap_bytes": 0,
+    "host_swap_growth_bytes": 29167616,
+    "safety_incident": false
+  }
+}
