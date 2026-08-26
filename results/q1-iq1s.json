@@ -21,7 +21,6 @@
     "input_tokens": [512, 4000, 16000, 32000],
     "concurrency": [1, 2, 4, 8],
     "output_tokens_per_request": 256,
-    "repetitions_per_cell": 1,
     "temperature": 0.0,
     "seed": 42,
     "cold_cache_prompt": false,

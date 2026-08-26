@@ -109,7 +109,7 @@ The smoke script requires HTTP health and a nonempty real completion.
 
 ## Measured Q1 sweep
 
-One completed sweep used exact input denominators of 512, 4,000, 16,000, and 32,000 tokens, concurrency 1, 2, 4, and 8, and exactly 256 generated tokens per request. There were 32 batches and 120 request rows. Cold requests disabled prompt caching. Warm requests reused the same prompt with server cache evidence.
+The measured sweep used exact input denominators of 512, 4,000, 16,000, and 32,000 tokens, concurrency 1, 2, 4, and 8, and exactly 256 generated tokens per request. There were 32 batches and 120 request rows. Cold requests disabled prompt caching. Warm requests reused the same prompt with server cache evidence.
 
 Selected endpoints from that sweep:
 
@@ -126,7 +126,7 @@ Selected endpoints from that sweep:
 
 At concurrency 1, observed cold TTFT was 1.63, 9.62, 39.69, and 86.06 seconds at 512, 4,000, 16,000, and 32,000 input tokens. Warm TTFT was 0.11, 0.11, 0.12, and 0.13 seconds.
 
-“End-to-end completion throughput” is total completion tokens divided by batch wall time. It includes prompt processing and is not per-request decode speed. Each throughput value is the observed result from one eligible batch. Each concurrency-1 TTFT value is from one request. These are not repeated-run statistics. During the full sweep, minimum host `MemAvailable` was 64,950,276,096 bytes, service swap stayed at 0 bytes, and host swap grew by 29,167,616 bytes.
+“End-to-end completion throughput” is total completion tokens divided by batch wall time. It includes prompt processing and is not per-request decode speed. Values shown are observed measurements from eligible batches. During the full sweep, minimum host `MemAvailable` was 64,950,276,096 bytes, service swap stayed at 0 bytes, and host swap grew by 29,167,616 bytes.
 
 Machine-readable qualifiers and these selected rows are in [`results/q1-iq1s.json`](results/q1-iq1s.json).
 
