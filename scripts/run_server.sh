@@ -21,6 +21,7 @@ parallel="${PARALLEL:-8}"
 batch_size="${BATCH_SIZE:-2048}"
 ubatch_size="${UBATCH_SIZE:-64}"
 ngram_mod="${NGRAM_MOD:-0}"
+mmproj_path="${MMPROJ_PATH:-}"
 
 args=(
   --model "$model"
@@ -44,6 +45,11 @@ args=(
   --port 8001
   --no-webui
 )
+
+if [[ -n "$mmproj_path" ]]; then
+  [[ -f "$mmproj_path" ]] || { printf 'missing multimodal projector: %s\n' "$mmproj_path" >&2; exit 1; }
+  args+=(--mmproj "$mmproj_path")
+fi
 
 if [[ "$ngram_mod" == "1" ]]; then
   args+=(

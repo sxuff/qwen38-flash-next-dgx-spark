@@ -12,6 +12,7 @@ This repository contains scripts and measured results. It does not contain model
 - Model revision: `d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249`
 - Q3 profile: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
 - Q3 model revision: `8bdc666649440e9bdc97e16f3f75782c98478ff5`
+- Native-vision projector: `mmproj-F16.gguf`, revision `824f539b2710e5a9e47af4952cf6578cf5ee8932`, 904,004,000 bytes
 - Runtime: llama.cpp PR [#27742](https://github.com/ggml-org/llama.cpp/pull/27742), commit `b8bdf73bb9baf044caadd33be2a51be70156ec57`
 - CUDA target: SM121 (`121` in this pinned llama.cpp build)
 - API: OpenAI-compatible llama.cpp server on `127.0.0.1:8001`
@@ -66,6 +67,16 @@ python3 scripts/download_model.py \
   --destination "$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944"
 ```
 
+Native vision requires the separate F16 multimodal projector. It was added to the Unsloth repository after the pinned Q3 weight revision, so it has its own immutable manifest. Download it into the same destination:
+
+```bash
+python3 scripts/download_model.py \
+  --manifest manifests/q3-mmproj-f16.json \
+  --destination "$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944"
+```
+
+The installer verifies and enables `mmproj-F16.gguf` automatically when it is present. If you skip this 904 MB file, Q3 still serves text but rejects native image input.
+
 ## 3. Build the pinned llama.cpp revision
 
 ```bash
@@ -113,6 +124,8 @@ The Q3 profile uses the single-slot operating point exercised by the current n-g
 -b 512
 -ub 64
 NGRAM_MOD=1
+MMPROJ_PATH=<model-root>/mmproj-F16.gguf
+--mmproj <model-root>/mmproj-F16.gguf
 --spec-type ngram-mod
 --spec-ngram-mod-n-match 24
 --spec-ngram-mod-n-min 48
@@ -219,6 +232,29 @@ python3 scripts/benchmark_ngram_mod.py \
 ```
 
 If the server uses bearer authentication, export `QWEN38_GX10_API_KEY` before running the benchmark script.
+
+## Measured native vision
+
+The pinned F16 projector was hash-verified (`1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980`), loaded with `--mmproj`, and exercised while the Q3 text model and `ngram-mod` remained unchanged. The server advertised both `completion` and `multimodal` capabilities.
+
+Two direct OpenAI-compatible API checks passed:
+
+- A generated 64×64 red square returned exactly `red`.
+- A 2,108×972 Hermes failure screenshot returned the exact visible error banner: `The model provider failed after retries. I kept raw provider details out of chat; check gateway logs for diagnostics.`
+
+A Hermes `vision_analyze` tool round trip against the same screenshot returned the same sentence through Qwen without the previous HTTP 500. Vision-enabled startup reached readiness in 107.49 seconds, minimum host `MemAvailable` during startup was 27,929,059,328 bytes, service swap stayed at 0, and host swap did not grow. Machine-readable evidence is in [`results/q3-q3kxl-vision.json`](results/q3-q3kxl-vision.json).
+
+For a named Hermes provider, mark the served model vision-capable only after `/v1/models` advertises `multimodal` and a real image request passes:
+
+```bash
+hermes config unset model.supports_vision
+hermes config set \
+  providers.qwen38-flash-next-gx10.models.qwen38-flash-next-q3-k-xl.supports_vision \
+  true
+hermes config check
+```
+
+The `unset` prevents the persisted default model's top-level capability shortcut from shadowing a session-only `/model` switch on affected Hermes builds. If the projector is not installed, keep the Qwen model override `false` so Hermes routes screenshots through an auxiliary vision model instead of sending unsupported image input to llama.cpp.
 
 ## Safety and troubleshooting
 

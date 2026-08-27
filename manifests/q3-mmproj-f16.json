@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_type": "multimodal_projector",
+  "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+  "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+  "quantization": "F16",
+  "total_bytes": 904004000,
+  "reserve_bytes": 2147483648,
+  "files": [
+    {
+      "path": "mmproj-F16.gguf",
+      "bytes": 904004000,
+      "sha256": "1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980"
+    }
+  ]
+}

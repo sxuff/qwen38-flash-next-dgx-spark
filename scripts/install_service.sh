@@ -30,6 +30,20 @@ esac
 manifest="$repo_root/manifests/$profile.json"
 python3 "$repo_root/scripts/download_model.py" --manifest "$manifest" --destination "$model_root" --verify-only
 model_entry="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["files"][0]["path"])' "$manifest")"
+mmproj_path=""
+if [[ "$profile" == "q3-q3kxl" ]]; then
+  projector="$model_root/mmproj-F16.gguf"
+  if [[ -f "$projector" ]]; then
+    projector_manifest="$repo_root/manifests/q3-mmproj-f16.json"
+    python3 "$repo_root/scripts/download_model.py" \
+      --manifest "$projector_manifest" \
+      --destination "$model_root" \
+      --verify-only
+    mmproj_path="$(realpath "$projector")"
+  else
+    printf 'warning: %s is absent; Q3 will run text-only\n' "$projector" >&2
+  fi
+fi
 [[ -x "$llama_root/build-gb10-pr27742/bin/llama-server" ]] || {
   printf 'error: pinned llama-server binary is missing\n' >&2
   exit 1
@@ -49,6 +63,7 @@ install -m 0644 "$repo_root/systemd/qwen38-flash-next-llama.service" "$HOME/.con
   printf 'BATCH_SIZE=%q\n' "$batch_size"
   printf 'UBATCH_SIZE=64\n'
   printf 'NGRAM_MOD=%q\n' "$ngram_mod"
+  printf 'MMPROJ_PATH=%q\n' "$mmproj_path"
 } > "$HOME/.config/qwen38-flash-next/server.env"
 chmod 0600 "$HOME/.config/qwen38-flash-next/server.env"
 

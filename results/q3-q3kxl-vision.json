@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "evidence_label": "measured native-vision validation",
+  "hardware": "one NVIDIA GB10 system with 128 GB unified memory",
+  "model": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "8bdc666649440e9bdc97e16f3f75782c98478ff5",
+    "quantization": "UD-Q3_K_XL",
+    "verified_bytes": 89986353824
+  },
+  "projector": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+    "filename": "mmproj-F16.gguf",
+    "bytes": 904004000,
+    "sha256": "1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980"
+  },
+  "runtime": {
+    "implementation": "llama.cpp PR #27742",
+    "commit": "b8bdf73bb9baf044caadd33be2a51be70156ec57",
+    "cuda_architecture": "SM121",
+    "context_tokens": 65536,
+    "slots": 1,
+    "ngram_mod": true,
+    "projector_flag": "--mmproj"
+  },
+  "readiness_and_safety": {
+    "status": "passed",
+    "ready_seconds": 107.48578648199327,
+    "minimum_mem_available_bytes_during_startup": 27929059328,
+    "host_swap_growth_bytes_during_startup": 0,
+    "service_swap_bytes": 0,
+    "advertised_capabilities": [
+      "completion",
+      "multimodal"
+    ]
+  },
+  "direct_api_checks": [
+    {
+      "id": "red_square",
+      "http_status": 200,
+      "expected": "red",
+      "observed": "red",
+      "passed": true,
+      "prompt_tokens": 40,
+      "completion_tokens": 2,
+      "elapsed_seconds": 0.4183250279747881
+    },
+    {
+      "id": "failure_screenshot",
+      "http_status": 200,
+      "expected": "The model provider failed after retries. I kept raw provider details out of chat; check gateway logs for diagnostics.",
+      "observed": "The model provider failed after retries. I kept raw provider details out of chat; check gateway logs for diagnostics.",
+      "passed": true,
+      "prompt_tokens": 2009,
+      "completion_tokens": 23,
+      "elapsed_seconds": 9.540738153998973
+    }
+  ],
+  "hermes_check": {
+    "supports_vision_override": true,
+    "vision_analyze_round_trip": "The model provider failed after retries. I kept raw provider details out of chat; check gateway logs for diagnostics.",
+    "passed": true
+  },
+  "scope_note": "This validates native image input for two bounded cases and one Hermes vision-tool round trip. It is not a broad visual benchmark and does not measure video input."
+}
