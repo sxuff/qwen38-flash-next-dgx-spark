@@ -12,8 +12,8 @@ This repository contains scripts and measured results. It does not contain model
 - Model revision: `d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249`
 - Q3 profile: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
 - Q3 model revision: `8bdc666649440e9bdc97e16f3f75782c98478ff5`
-- Runtime: llama.cpp PR [#27742](https://github.com/ggml-org/llama.cpp/pull/27742), commit `bea3b12daee45876b0129a3602dc8f534ce30bf0`
-- CUDA target: SM121 (`121a-real` in this pinned llama.cpp build)
+- Runtime: llama.cpp PR [#27742](https://github.com/ggml-org/llama.cpp/pull/27742), commit `b8bdf73bb9baf044caadd33be2a51be70156ec57`
+- CUDA target: SM121 (`121` in this pinned llama.cpp build)
 - API: OpenAI-compatible llama.cpp server on `127.0.0.1:8001`
 
 The model is licensed separately under the [Qwen Community License 1.0](https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/f5d08274bafd880402bd16f5e3e6c514136ec06c/LICENSE). Review it before downloading or deploying the weights. The scripts in this repository are MIT licensed.
@@ -72,7 +72,7 @@ python3 scripts/download_model.py \
 bash scripts/build_llama.sh "$HOME/src/llama.cpp-qwen38-flash-next"
 ```
 
-The script fetches PR #27742, rejects any head other than the pinned commit, builds `llama-server` for SM121, and runs `--list-devices`.
+The script fetches the exact pinned PR commit, builds `llama-server` for SM121, and runs `--list-devices`.
 
 ## 4. Install the user service
 
@@ -93,22 +93,45 @@ bash scripts/install_service.sh \
   q3-q3kxl
 ```
 
-The service binds localhost only, disables host swap for its cgroup, caps memory at 110 GiB, and uses these measured controls:
+The service binds localhost only, disables service swap, and caps its cgroup at 110 GiB. The installer writes profile-specific controls to `~/.config/qwen38-flash-next/server.env`.
+
+The Q1 profile retains the original measured concurrency configuration:
+
+```text
+-c 262144
+-np 8
+-b 2048
+-ub 64
+NGRAM_MOD=0
+```
+
+The Q3 profile uses the single-slot operating point exercised by the current n-gram comparison:
+
+```text
+-c 65536
+-np 1
+-b 512
+-ub 64
+NGRAM_MOD=1
+--spec-type ngram-mod
+--spec-ngram-mod-n-match 24
+--spec-ngram-mod-n-min 48
+--spec-ngram-mod-n-max 64
+```
+
+Both profiles keep these controls:
 
 ```text
 -ngl 99
 -ot per_layer_token_embd=CPU
--b 2048
--ub 64
--c 262144
--np 8
 --no-kv-unified
 --cache-ram 0
 --no-cache-idle-slots
 --no-context-shift
+--load-mode mmap
 ```
 
-With eight slots, the 262,144-token total context provides 32,768 tokens per slot. Reduce `-np` in `scripts/run_server.sh` if one request needs more than 32K context. Revalidate memory and output after changing any control.
+With eight Q1 slots, the 262,144-token total context provides 32,768 tokens per slot. Q3 is installed with one 65,536-token slot because that is the measured n-gram operating point. Revalidate memory and output after changing context, slots, cache type, or speculative settings.
 
 Follow startup without exposing the server publicly:
 
@@ -127,6 +150,8 @@ python3 scripts/smoke.py --base-url http://127.0.0.1:8001
 The smoke script requires HTTP health and a nonempty real completion.
 
 ## Measured Q1 sweep
+
+The Q1 sweep and the original Q3 validation below were produced with the earlier pinned runtime commit `bea3b12daee45876b0129a3602dc8f534ce30bf0`. Their machine-readable result files retain that runtime identity. The current Q3 n-gram comparison uses the newer commit listed in the verified stack.
 
 The measured sweep used exact input denominators of 512, 4,000, 16,000, and 32,000 tokens, concurrency 1, 2, 4, and 8, and exactly 256 generated tokens per request. There were 32 batches and 120 request rows. Cold requests disabled prompt caching. Warm requests reused the same prompt with server cache evidence.
 
@@ -161,6 +186,39 @@ The Q3 profile passed a short fit, safety, and paired-quality gate under the sam
 The 32K × 8 fit gate completed all eight requests in 787.41 seconds at 2.60 aggregate completion tok/s. The four-case deterministic quality corpus covered coding, structured tool arguments, instruction following, and reasoning. Q3 passed 4/4 cases and matched the recorded Q1 outputs exactly in 4/4 cases.
 
 During this validation, minimum host `MemAvailable` was 17,894,166,528 bytes, service swap stayed at 0 bytes, and host swap grew by 74,678,272 bytes. Machine-readable qualifiers are in [`results/q3-q3kxl.json`](results/q3-q3kxl.json).
+
+## Measured Q3 `ngram-mod` comparison
+
+`ngram-mod` is a draftless speculative decoder. It hashes recent token sequences, proposes continuations seen earlier in the prompt or generated history, and lets Qwen verify the whole proposal. It does not add a second model and does not change accepted output tokens.
+
+A single paired sweep compared the latest pinned runtime with speculation disabled against the same runtime with the four flags shown above. Both arms used identical request bytes, temperature 0, seed 42, thinking disabled, one 65,536-token slot, and 3,496 completion tokens across four cases.
+
+| Case | Completion tokens | Baseline wall time | `ngram-mod` wall time | Speedup | Accepted draft tokens |
+|---|---:|---:|---:|---:|---:|
+| Copy Python | 1,189 | 48.00 s | 12.64 s | 3.80× | 1,069 / 1,088 |
+| Copy JSON | 1,552 | 62.62 s | 23.74 s | 2.64× | 1,453 / 2,432 |
+| Structured transform | 520 | 24.42 s | 12.56 s | 1.94× | 470 / 896 |
+| Novel code | 235 | 8.70 s | 8.76 s | 0.99× | 0 / 0 |
+
+All four treatment outputs matched their paired baseline outputs exactly. Aggregate wall time fell from 143.74 to 57.71 seconds, a 2.49× speedup. Server-reported decode throughput increased from 27.26 to 82.61 tok/s, and 2,992 of 4,416 drafted tokens were accepted. The novel-code control received no usable drafts and showed no meaningful improvement.
+
+This is one operational sweep, not a broad model benchmark. It supports enabling `ngram-mod` for the measured single-slot Q3 profile, especially for copy-heavy code, JSON, and transformations. It does not establish a 2.49× gain for unrelated prompts. Full machine-readable qualifiers are in [`results/q3-q3kxl-ngram-mod.json`](results/q3-q3kxl-ngram-mod.json).
+
+To reproduce the paired requests, restart once with `NGRAM_MOD=0` and once with `NGRAM_MOD=1`, then run:
+
+```bash
+python3 scripts/benchmark_ngram_mod.py \
+  --base-url http://127.0.0.1:8001 \
+  --arm baseline \
+  --output baseline.json
+
+python3 scripts/benchmark_ngram_mod.py \
+  --base-url http://127.0.0.1:8001 \
+  --arm ngram-mod \
+  --output ngram-mod.json
+```
+
+If the server uses bearer authentication, export `QWEN38_GX10_API_KEY` before running the benchmark script.
 
 ## Safety and troubleshooting
 

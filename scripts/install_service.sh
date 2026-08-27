@@ -13,7 +13,18 @@ llama_root="$(realpath "$llama_root")"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 case "$profile" in
-  q1-iq1s|q3-q3kxl) ;;
+  q1-iq1s)
+    ctx_size=262144
+    parallel=8
+    batch_size=2048
+    ngram_mod=0
+    ;;
+  q3-q3kxl)
+    ctx_size=65536
+    parallel=1
+    batch_size=512
+    ngram_mod=1
+    ;;
   *) printf 'error: unknown profile: %s\n' "$profile" >&2; exit 2 ;;
 esac
 manifest="$repo_root/manifests/$profile.json"
@@ -33,6 +44,11 @@ install -m 0644 "$repo_root/systemd/qwen38-flash-next-llama.service" "$HOME/.con
   printf 'MODEL_ROOT=%q\n' "$model_root"
   printf 'LLAMA_ROOT=%q\n' "$llama_root"
   printf 'MODEL_ENTRY=%q\n' "$model_entry"
+  printf 'CTX_SIZE=%q\n' "$ctx_size"
+  printf 'PARALLEL=%q\n' "$parallel"
+  printf 'BATCH_SIZE=%q\n' "$batch_size"
+  printf 'UBATCH_SIZE=64\n'
+  printf 'NGRAM_MOD=%q\n' "$ngram_mod"
 } > "$HOME/.config/qwen38-flash-next/server.env"
 chmod 0600 "$HOME/.config/qwen38-flash-next/server.env"
 

@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "evidence_label": "measured single paired sweep",
+  "hardware": "one NVIDIA GB10 system with 128 GB unified memory",
+  "model": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "8bdc666649440e9bdc97e16f3f75782c98478ff5",
+    "quantization": "UD-Q3_K_XL",
+    "verified_bytes": 89986353824
+  },
+  "runtime": {
+    "implementation": "llama.cpp PR #27742",
+    "commit": "b8bdf73bb9baf044caadd33be2a51be70156ec57",
+    "cuda_architecture": "SM121",
+    "context_tokens": 65536,
+    "slots": 1
+  },
+  "design": {
+    "arms": [
+      "baseline",
+      "ngram-mod"
+    ],
+    "order": "baseline then ngram-mod",
+    "paired_cases": 4,
+    "repetitions": 1,
+    "same_request_bytes": true,
+    "temperature": 0.0,
+    "seed": 42,
+    "thinking": false,
+    "treatment_flags": [
+      "--spec-type ngram-mod",
+      "--spec-ngram-mod-n-match 24",
+      "--spec-ngram-mod-n-min 48",
+      "--spec-ngram-mod-n-max 64"
+    ]
+  },
+  "aggregate": {
+    "completion_tokens_per_arm": 3496,
+    "exact_output_matches": 4,
+    "baseline_wall_seconds": 143.743508152,
+    "ngram_mod_wall_seconds": 57.7055263,
+    "wall_speedup_x": 2.490983400874034,
+    "baseline_server_decode_tokens_per_second": 27.256071414649362,
+    "ngram_mod_server_decode_tokens_per_second": 82.60850045250366,
+    "server_decode_speedup_x": 3.030829322236951,
+    "draft_tokens": 4416,
+    "accepted_tokens": 2992,
+    "acceptance_rate": 0.677536231884058
+  },
+  "cases": [
+    {
+      "id": "copy_python",
+      "completion_tokens": 1189,
+      "exact_output_match": true,
+      "baseline_wall_seconds": 48.004150926,
+      "ngram_mod_wall_seconds": 12.64339792,
+      "wall_speedup_x": 3.796776090552721,
+      "baseline_server_decode_tokens_per_second": 27.296561413819546,
+      "ngram_mod_server_decode_tokens_per_second": 142.51656200669072,
+      "draft_tokens": 1088,
+      "accepted_tokens": 1069,
+      "acceptance_rate": 0.9825367647058824
+    },
+    {
+      "id": "copy_json",
+      "completion_tokens": 1552,
+      "exact_output_match": true,
+      "baseline_wall_seconds": 62.617540176,
+      "ngram_mod_wall_seconds": 23.74389022,
+      "wall_speedup_x": 2.6372064390381937,
+      "baseline_server_decode_tokens_per_second": 27.112769555434433,
+      "ngram_mod_server_decode_tokens_per_second": 84.48414860718192,
+      "draft_tokens": 2432,
+      "accepted_tokens": 1453,
+      "acceptance_rate": 0.5974506578947368
+    },
+    {
+      "id": "structured_transform",
+      "completion_tokens": 520,
+      "exact_output_match": true,
+      "baseline_wall_seconds": 24.422702286,
+      "ngram_mod_wall_seconds": 12.561191082,
+      "wall_speedup_x": 1.9442982856138036,
+      "baseline_server_decode_tokens_per_second": 27.270820222362076,
+      "ngram_mod_server_decode_tokens_per_second": 72.80465949820787,
+      "draft_tokens": 896,
+      "accepted_tokens": 470,
+      "acceptance_rate": 0.5245535714285714
+    },
+    {
+      "id": "novel_code",
+      "completion_tokens": 235,
+      "exact_output_match": true,
+      "baseline_wall_seconds": 8.699114764,
+      "ngram_mod_wall_seconds": 8.757047078,
+      "wall_speedup_x": 0.993384492114295,
+      "baseline_server_decode_tokens_per_second": 27.98951881848504,
+      "ngram_mod_server_decode_tokens_per_second": 27.76301021915059,
+      "draft_tokens": 0,
+      "accepted_tokens": 0,
+      "acceptance_rate": null
+    }
+  ],
+  "readiness_and_safety": {
+    "baseline_ready_seconds": 74.8289482879918,
+    "baseline_minimum_mem_available_bytes_during_startup": 27768164352,
+    "baseline_host_swap_growth_bytes_during_startup": 2564096,
+    "baseline_service_swap_bytes": 0,
+    "ngram_mod_ready_seconds": 74.97039918700466,
+    "ngram_mod_minimum_mem_available_bytes_during_startup": 29037920256,
+    "ngram_mod_host_swap_growth_bytes_during_startup": 0,
+    "ngram_mod_service_swap_bytes": 0,
+    "post_deployment_health_http": 200,
+    "post_deployment_speculative_slot": true,
+    "post_deployment_service_swap_bytes": 0,
+    "hermes_client_smoke": "NGRAM_HERMES_OK"
+  },
+  "scope_note": "This is one paired operational sweep chosen to include copy-heavy code, copy-heavy JSON, a structured transformation, and a novel-code control. It is not a broad model benchmark and does not establish the same speedup for unrelated prompts."
+}

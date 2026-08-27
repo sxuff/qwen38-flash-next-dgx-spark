@@ -16,24 +16,45 @@ nvidia-smi >/dev/null
 mem_available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
 (( mem_available_kib >= 6291456 )) || { printf 'less than 6 GiB MemAvailable\n' >&2; exit 1; }
 
-exec "$binary" \
-  --model "$model" \
-  -c 262144 \
-  -np 8 \
-  --no-kv-unified \
-  -b 2048 \
-  -ub 64 \
-  -ngl 99 \
-  -ot per_layer_token_embd=CPU \
-  --cache-prompt \
-  --cache-reuse 0 \
-  --slot-prompt-similarity 0.10 \
-  --cache-ram 0 \
-  --no-cache-idle-slots \
-  --no-context-shift \
-  --load-mode mmap \
-  --metrics \
-  --slots \
-  --host 127.0.0.1 \
-  --port 8001 \
+ctx_size="${CTX_SIZE:-262144}"
+parallel="${PARALLEL:-8}"
+batch_size="${BATCH_SIZE:-2048}"
+ubatch_size="${UBATCH_SIZE:-64}"
+ngram_mod="${NGRAM_MOD:-0}"
+
+args=(
+  --model "$model"
+  -c "$ctx_size"
+  -np "$parallel"
+  --no-kv-unified
+  -b "$batch_size"
+  -ub "$ubatch_size"
+  -ngl 99
+  -ot per_layer_token_embd=CPU
+  --cache-prompt
+  --cache-reuse 0
+  --slot-prompt-similarity 0.10
+  --cache-ram 0
+  --no-cache-idle-slots
+  --no-context-shift
+  --load-mode mmap
+  --metrics
+  --slots
+  --host 127.0.0.1
+  --port 8001
   --no-webui
+)
+
+if [[ "$ngram_mod" == "1" ]]; then
+  args+=(
+    --spec-type ngram-mod
+    --spec-ngram-mod-n-match 24
+    --spec-ngram-mod-n-min 48
+    --spec-ngram-mod-n-max 64
+  )
+elif [[ "$ngram_mod" != "0" ]]; then
+  printf 'NGRAM_MOD must be 0 or 1\n' >&2
+  exit 1
+fi
+
+exec "$binary" "${args[@]}"
