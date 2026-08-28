@@ -272,6 +272,40 @@ Stop the owned service if `MemAvailable` drops below 6 GiB, service swap becomes
 
 If startup fails, diagnose in this order: GPU visibility, exact shard verification, disk/cache, pinned binary and CUDA device list, service logs, health endpoint, then generation.
 
+### Known failure mechanisms on this stack (measured on a second GB10)
+
+Three behaviors this runbook already works around have known root causes,
+verified independently on another DGX Spark running the same PR #27742 build:
+
+- **Do not force the per-layer embedding table onto the GPU.**
+  `-ot per_layer_token_embd=CUDA0` looks tempting once you notice the ~25 GiB
+  CPU buffer, but the tensor is IQ4_NL with `ne[0]=160` and the CUDA `get_rows`
+  path requires `ne[0] % 256 == 0`. `--override-tensor` bypasses that support
+  check, so instead of a clean error the kernel reads out of bounds — on
+  unified memory this can starve the kernel itself: the host stops answering
+  SSH and ping and needs a physical power cycle (there is no BMC on this
+  hardware). The table's per-token cost is a small gather; there is nothing to
+  gain by moving it.
+- **Keep one slot while any `--spec-type` is active.** Two simultaneous
+  decodes trip `GGML_ASSERT(mctx_idx->get_n_kv() == inp->mctx->get_attn()->get_n_kv())`
+  (`src/models/qwen4exp.cpp`). The failure is shape-dependent: a concurrency
+  hammer can pass at 2×32K contexts and the same test aborts at 2×131K, so a
+  passing small-context check is not evidence of safety. Without speculation,
+  multiple slots work.
+- **Flat decode across quants is expected, not a measurement error.** Decode is
+  dominated by a fixed per-token graph cost (thousands of nodes: MoE routing,
+  QSA indexer, hyper-connections); the weight reads are the minority term.
+  That is consistent with this repo's own numbers (Q3_K_XL 27.7 vs IQ1_S 26.6
+  warm) and with UD-IQ4_XS measuring ~26–28 on another unit. Pick the largest
+  quant that fits your memory plan; a smaller file buys no speed.
+
+Longer write-ups of these mechanisms, a pinned Dockerfile stacking the MoE
+vision fix (PR #27044 — required before sending images to any MoE GGUF; its
+absence corrupts memory *probabilistically*), and a speculative-decoding
+profile using Qwen3.5-0.8B as an external drafter (same 248,320-token vocab)
+live in [paragontasx/qwen38-flash-next-dgx-spark](https://github.com/paragontasx/qwen38-flash-next-dgx-spark)
+— complementary to this repo's manifests and multi-quant sweeps.
+
 ## Cleanup
 
 ```bash
