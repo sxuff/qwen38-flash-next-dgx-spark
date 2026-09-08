@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "artifact_type": "speculative_draft_sidecar",
+  "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+  "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+  "variant": "shared-Q8_0",
+  "total_bytes": 2786568256,
+  "reserve_bytes": 8589934592,
+  "files": [
+    {
+      "path": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf",
+      "bytes": 2786568256,
+      "sha256": "5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6"
+    }
+  ]
+}

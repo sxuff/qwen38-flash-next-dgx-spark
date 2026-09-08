@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "run_id": "q3-mtp-primary-002",
+  "status": "publication-artifacts-verified",
+  "frozen_preregistration_sha256": "667ef2cf2787a3d3f3b14f3c6ef390cc8bd467f32cc178df617ef6aed8ded87e",
+  "original_sealed_analysis_sha256": "22336f29e3b7f1970a75392c8f1998b178017a6d48fde70afcfb693ead1b37de",
+  "corrected_public_analysis_sha256": "a833f0ba99d7262c39758a209f4fc0b6ba6d8a332e515324adeb6d7a9b5ebfb9",
+  "corrected_public_analysis_bytes": 19870,
+  "public_result": "results/q3-q3kxl-mtp.json",
+  "target": {
+    "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+    "revision": "8bdc666649440e9bdc97e16f3f75782c98478ff5",
+    "variant": "UD-Q3_K_XL"
+  },
+  "runtime": {
+    "repo": "https://github.com/danielhanchen/llama.cpp.git",
+    "commit": "d1a92352cbd417fd840b4e765c0b82f5fe3d1d89",
+    "upstream_pr": "https://github.com/ggml-org/llama.cpp/pull/28243"
+  },
+  "draft": {
+    "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+    "file": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf",
+    "sha256": "5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6"
+  },
+  "projector": {
+    "revision": "824f539b2710e5a9e47af4952cf6578cf5ee8932",
+    "file": "mmproj-F16.gguf",
+    "sha256": "1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980"
+  },
+  "private_boundary": "Raw SSE, full generations, server logs, telemetry samples, rollback details, and host paths remain outside the public repository.",
+  "installer_dry_run": {
+    "passed": true,
+    "profile": "q3-q3kxl-mtp3",
+    "spec_type": "draft-mtp",
+    "depth": 3,
+    "automatic_fit": "off",
+    "projector": "verified F16",
+    "sidecar": "verified shared Q8_0"
+  }
+}

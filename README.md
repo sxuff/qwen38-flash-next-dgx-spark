@@ -233,6 +233,62 @@ python3 scripts/benchmark_ngram_mod.py \
 
 If the server uses bearer authentication, export `QWEN38_GX10_API_KEY` before running the benchmark script.
 
+## Measured Q3 native-MTP comparison
+
+A new matched sweep reran no-spec and `ngram-mod` on the MTP-capable runtime, then tested the shared Q8_0 MTP sidecar at depths 2 and 3. All four arms used the same pinned UD-Q3_K_XL target, F16 projector, 65,536-token single slot, request bytes, temperature 0, seed 42, and four operator cases.
+
+| Arm | Total wall | Whole-request rate | Server decode | Draft acceptance | Valid tasks | Exact vs baseline |
+|---|---:|---:|---:|---:|---:|---:|
+| No spec | 139.04 s | 25.02 tok/s | 28.07 tok/s | n/a | 4/4 | 4/4 |
+| **`ngram-mod`** | **56.49 s** | **61.59 tok/s** | **83.96 tok/s** | 67.75% | 4/4 | 4/4 |
+| MTP depth 2 | 84.23 s | 41.30 tok/s | 50.71 tok/s | 99.36% | 4/4 | 4/4 |
+| MTP depth 3 | 75.86 s | 45.86 tok/s | 57.85 tok/s | 99.16% | 4/4 | 4/4 |
+
+`ngram-mod` remains the fastest aggregate profile because three cases reproduce or transform prompt content. MTP depth 3 is the useful complement: on the novel-code case, it cut valid-answer wall time from 8.50 seconds under `ngram-mod` to 4.86 seconds, a **42.8% reduction**, while `ngram-mod` proposed zero tokens. MTP depth 3 was also 9.94% faster than depth 2 across the complete suite.
+
+Every arm passed the exact text canary, native red-square vision canary, JSON checks, and eight sandboxed code tests. Service swap stayed at zero. Complete-scope host swap growth remained below the unchanged 512 MiB ceiling: 261,693,440 bytes no-spec, 35,258,368 `ngram-mod`, 1,912,832 MTP-2, and 32,309,248 MTP-3. Minimum `MemAvailable` remained at least 52,450,754,560 bytes.
+
+The operating recommendation is therefore **profile routing**, not one universal winner:
+
+- Keep `ngram-mod` for copying, structured transformation, and repeated context.
+- Use MTP depth 3 for novel code and other generation where prompt n-grams cannot draft.
+
+Machine-readable results are in [`results/q3-q3kxl-mtp.json`](results/q3-q3kxl-mtp.json); the complete-scope safety aggregation correction is documented in [`results/q3-q3kxl-mtp-posthoc.md`](results/q3-q3kxl-mtp-posthoc.md). This is one fixed-order operating sweep per arm, not a variance estimate.
+
+### Prior art and exact scope
+
+[`MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark`](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark) established a single-Spark vLLM/NVFP4/PLE/MTP lane. [`Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark`](https://github.com/Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark) established a one-Spark llama.cpp MTP recipe with UD-Q4_K_XL and the shared Q8_0 sidecar. [Unsloth publishes the sidecar and MTP guidance](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/tree/38bb39ee97821de2c9009abb7e93950eec396e66/MTP), while llama.cpp PR [#28243](https://github.com/ggml-org/llama.cpp/pull/28243) provides the runtime path. This repository claims only the measured result for its existing UD-Q3_K_XL target and frozen operator suite.
+
+### Install the optional MTP-3 profile
+
+Download and verify the pinned sidecar:
+
+```bash
+python3 scripts/download_model.py \
+  --manifest manifests/q3-mtp-shared-q8.json \
+  --destination "$HOME/qwen38-flash-next-mtp"
+```
+
+Build the exact MTP runtime:
+
+```bash
+JOBS=2 bash scripts/build_llama_mtp.sh \
+  "$HOME/src/llama.cpp-qwen38-flash-next-mtp"
+```
+
+Install MTP-3 with the verified target, sidecar, and projector:
+
+```bash
+bash scripts/install_service.sh \
+  "$HOME/qwen38-flash-next-q3/snapshot" \
+  "$HOME/src/llama.cpp-qwen38-flash-next-mtp" \
+  q3-q3kxl-mtp3 \
+  "$HOME/qwen38-flash-next-mtp/MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf" \
+  "$HOME/qwen38-flash-next-q3/mmproj/824f539b2710e5a9e47af4952cf6578cf5ee8932/mmproj-F16.gguf"
+```
+
+The existing `q3-q3kxl` installer profile remains the `ngram-mod` default. Switching profiles requires reinstalling the unit environment and restarting the service.
+
 ## Measured native vision
 
 The pinned F16 projector was hash-verified (`1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980`), loaded with `--mmproj`, and exercised while the Q3 text model and `ngram-mod` remained unchanged. The server advertised both `completion` and `multimodal` capabilities.
