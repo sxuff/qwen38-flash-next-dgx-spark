@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MODEL_REVISION = "d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249"
 VALIDATED_LLAMA_COMMIT = "bea3b12daee45876b0129a3602dc8f534ce30bf0"
 LLAMA_COMMIT = "b8bdf73bb9baf044caadd33be2a51be70156ec57"
+MTP_COMMIT = "d1a92352cbd417fd840b4e765c0b82f5fe3d1d89"
 
 manifest = json.loads((ROOT / "manifests/q1-iq1s.json").read_text())
 assert manifest["revision"] == MODEL_REVISION
@@ -31,6 +32,18 @@ assert projector_manifest["files"] == [{
     "path": "mmproj-F16.gguf",
     "bytes": 904004000,
     "sha256": projector_sha256,
+}]
+
+mtp_manifest = json.loads((ROOT / "manifests/q3-mtp-shared-q8.json").read_text())
+assert mtp_manifest["artifact_type"] == "speculative_draft_sidecar"
+assert mtp_manifest["revision"] == "38bb39ee97821de2c9009abb7e93950eec396e66"
+assert mtp_manifest["variant"] == "shared-Q8_0"
+assert mtp_manifest["total_bytes"] == 2786568256
+assert mtp_manifest["reserve_bytes"] == 8589934592
+assert mtp_manifest["files"] == [{
+    "path": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf",
+    "bytes": 2786568256,
+    "sha256": "5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6",
 }]
 
 results = json.loads((ROOT / "results/q1-iq1s.json").read_text())
@@ -72,8 +85,17 @@ assert vision_results["readiness_and_safety"]["advertised_capabilities"] == ["co
 assert all(row["passed"] for row in vision_results["direct_api_checks"])
 assert vision_results["hermes_check"]["passed"] is True
 
+mtp4_results = json.loads((ROOT / "results/q3-q3kxl-mtp4.json").read_text())
+assert mtp4_results["stack"]["target"]["revision"] == q3_revision
+assert mtp4_results["stack"]["runtime"]["commit"] == MTP_COMMIT
+assert mtp4_results["decision"]["promoted_profile"] == "q3-q3kxl-mtp4"
+assert mtp4_results["mtp3_vs_mtp4"]["promotion_gate_passed"] is True
+assert mtp4_results["rejected_two_slot_ngram_mod"]["promoted"] is False
+assert mtp4_results["safety"]["maximum_service_swap_bytes_in_every_valid_stage"] == 0
+
 readme = (ROOT / "README.md").read_text()
 build = (ROOT / "scripts/build_llama.sh").read_text()
+build_mtp = (ROOT / "scripts/build_llama_mtp.sh").read_text()
 server = (ROOT / "scripts/run_server.sh").read_text()
 installer = (ROOT / "scripts/install_service.sh").read_text()
 service = (ROOT / "systemd/qwen38-flash-next-llama.service").read_text()
@@ -83,11 +105,11 @@ all_public_text = "\n".join(
     if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts
 )
 
-for required in (MODEL_REVISION, q3_revision, projector_revision, projector_sha256, VALIDATED_LLAMA_COMMIT, LLAMA_COMMIT, "SM121", "UD-IQ1_S", "UD-Q3_K_XL"):
-    assert required in readme or required in build
-for required_flag in ("--no-kv-unified", "-ngl 99", "--no-context-shift", "--host", "127.0.0.1", "--spec-type", "ngram-mod", "--mmproj"):
+for required in (q3_revision, projector_revision, projector_sha256, MTP_COMMIT, "SM121", "UD-Q3_K_XL"):
+    assert required in readme or required in build_mtp
+for required_flag in ("--no-kv-unified", "-ngl 99", "--no-context-shift", "--host", "127.0.0.1", "draft-mtp", "--mmproj"):
     assert required_flag in server
-for required_profile_value in ("ctx_size=65536", "parallel=1", "batch_size=512", "ngram_mod=1"):
+for required_profile_value in ("q3-q3kxl-mtp4", "ctx_size=65536", "parallel=1", "batch_size=2048", "ubatch_size=512", "spec_mode=mtp-4"):
     assert required_profile_value in installer
 assert "MMPROJ_PATH" in installer
 assert "MemorySwapMax=0" in service

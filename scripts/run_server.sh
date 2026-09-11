@@ -82,7 +82,7 @@ case "$spec_mode" in
       --spec-ngram-mod-n-max 64
     )
     ;;
-  mtp-2|mtp-3)
+  mtp-2|mtp-3|mtp-4)
     [[ -f "$mtp_draft_path" ]] || { printf 'missing MTP sidecar: %s\n' "$mtp_draft_path" >&2; exit 1; }
     depth="${spec_mode#mtp-}"
     args+=(
@@ -92,7 +92,7 @@ case "$spec_mode" in
       --spec-draft-n-min 0
     )
     ;;
-  *) printf 'SPEC_MODE must be none, ngram-mod, mtp-2, or mtp-3\n' >&2; exit 1 ;;
+  *) printf 'SPEC_MODE must be none, ngram-mod, mtp-2, mtp-3, or mtp-4\n' >&2; exit 1 ;;
 esac
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then
