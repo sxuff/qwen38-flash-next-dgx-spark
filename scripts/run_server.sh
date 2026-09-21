@@ -40,6 +40,7 @@ fi
 
 args=(
   --model "$model"
+  --alias qwen38-flash-next-q3-k-xl
   -c "$ctx_size"
   -np "$parallel"
   --no-kv-unified
@@ -92,7 +93,18 @@ case "$spec_mode" in
       --spec-draft-n-min 0
     )
     ;;
-  *) printf 'SPEC_MODE must be none, ngram-mod, mtp-2, mtp-3, or mtp-4\n' >&2; exit 1 ;;
+  mtp-46)
+    [[ -f "$mtp_draft_path" ]] || { printf 'missing MTP sidecar: %s\n' "$mtp_draft_path" >&2; exit 1; }
+    args+=(
+      -md "$mtp_draft_path"
+      --spec-type draft-mtp
+      --spec-draft-n-max 6
+      --spec-draft-n-min 0
+      --spec-draft-p-min "${SPEC_P_MIN:-0.75}"
+      --spec-draft-mtp-context-threshold "${MTP_CONTEXT_THRESHOLD:-49152}"
+    )
+    ;;
+  *) printf 'SPEC_MODE must be none, ngram-mod, mtp-2, mtp-3, mtp-4, or mtp-46\n' >&2; exit 1 ;;
 esac
 
 if [[ "${DRY_RUN:-0}" == "1" ]]; then

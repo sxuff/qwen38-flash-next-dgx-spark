@@ -1,0 +1,191 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+index 2669cacd6..9b121de59 100644
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -1296,6 +1296,26 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+             ctx_arg.params = params_org;
+             return false;
+         }
++        if (ctx_arg.params.speculative.draft.mtp_context_threshold > 0) {
++            const auto & draft = ctx_arg.params.speculative.draft;
++            const auto & types = ctx_arg.params.speculative.types;
++            const bool has_mtp = std::find(types.begin(), types.end(), COMMON_SPECULATIVE_TYPE_DRAFT_MTP) != types.end();
++            const bool mtp_only = has_mtp && std::all_of(types.begin(), types.end(), [](common_speculative_type type) {
++                return type == COMMON_SPECULATIVE_TYPE_NONE || type == COMMON_SPECULATIVE_TYPE_DRAFT_MTP;
++            });
++            if (!mtp_only) {
++                throw std::invalid_argument("error: --spec-draft-mtp-context-threshold requires --spec-type draft-mtp");
++            }
++            if (draft.n_max != 6) {
++                throw std::invalid_argument("error: --spec-draft-mtp-context-threshold requires --spec-draft-n-max 6");
++            }
++            if (draft.n_min > 4) {
++                throw std::invalid_argument("error: --spec-draft-mtp-context-threshold requires --spec-draft-n-min <= 4");
++            }
++            if (ctx_arg.params.n_parallel != 1) {
++                throw std::invalid_argument("error: --spec-draft-mtp-context-threshold requires --parallel 1");
++            }
++        }
+         if (ctx_arg.params.usage) {
+             common_params_print_usage(ctx_arg);
+             if (ctx_arg.print_usage) {
+@@ -4163,6 +4183,16 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
+             params.speculative.draft.n_min = value;
+         }
+     ).set_spec().set_examples({LLAMA_EXAMPLE_SPECULATIVE, LLAMA_EXAMPLE_LOOKUP, LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_CLI}).set_env("LLAMA_ARG_SPEC_DRAFT_N_MIN"));
++    add_opt(common_arg(
++        {"--spec-draft-mtp-context-threshold"}, "N",
++        "use MTP depth 4 below N active target-KV tokens and --spec-draft-n-max at or above N (default: disabled)",
++        [](common_params & params, int value) {
++            if (value < 0) {
++                throw std::invalid_argument("invalid value");
++            }
++            params.speculative.draft.mtp_context_threshold = value;
++        }
++    ).set_spec().set_examples({LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_SPEC_DRAFT_MTP_CONTEXT_THRESHOLD"));
+     add_opt(common_arg(
+         {"--spec-synth-len"}, "L",
+         "target mean synthetic acceptance length, including the target token (benchmarking only)",
+diff --git a/common/common.h b/common/common.h
+index 63d0badd0..3206c44ea 100644
+--- a/common/common.h
++++ b/common/common.h
+@@ -326,6 +326,9 @@ struct common_params_speculative_draft {
+     int32_t n_max = 3; // maximum number of tokens to draft during speculative decoding
+     int32_t n_min = 0; // minimum number of draft tokens to use for speculative decoding
+ 
++    // If positive, MTP uses depth 4 below this active target-KV span and n_max at or above it.
++    int32_t mtp_context_threshold = 0;
++
+     float p_split = 0.1f; // speculative decoding split probability
+     float p_min   = 0.0f; // minimum speculative decoding probability (greedy)
+ 
+diff --git a/common/speculative.cpp b/common/speculative.cpp
+index ee74497f1..9707bc0bc 100644
+--- a/common/speculative.cpp
++++ b/common/speculative.cpp
+@@ -1693,7 +1693,7 @@ struct common_speculative_impl_draft_mtp : public common_speculative_impl {
+ 
+                 result.push_back(id);
+ 
+-                if (params.n_max <= (int) result.size()) {
++                if (common_speculative_draft_limit(params.n_max, dp.n_max) <= (int) result.size()) {
+                     drafting[seq_id] = false;
+                     n_drafting--;
+                     continue;
+@@ -2599,6 +2599,19 @@ common_speculative_output_limits common_speculative_get_output_limits(
+     };
+ }
+ 
++int32_t common_speculative_draft_limit(int32_t configured_max, int32_t runtime_max) {
++    return runtime_max > 0 ? std::min(configured_max, runtime_max) : configured_max;
++}
++
++int32_t common_speculative_mtp_context_limit(
++        const common_params_speculative_draft & params, int32_t n_ctx_used) {
++    if (params.mtp_context_threshold <= 0 || n_ctx_used >= params.mtp_context_threshold) {
++        return params.n_max;
++    }
++
++    return std::min(params.n_max, 4);
++}
++
+ // initialization of the speculative decoding system
+ //
+ common_speculative * common_speculative_init(common_params_speculative & params, uint32_t n_seq) {
+diff --git a/common/speculative.h b/common/speculative.h
+index 22505891f..bd8419165 100644
+--- a/common/speculative.h
++++ b/common/speculative.h
+@@ -71,6 +71,13 @@ struct common_speculative_draft_params {
+     llama_tokens * result;
+ };
+ 
++// Combine the configured allocation limit with a per-sequence runtime limit.
++int32_t common_speculative_draft_limit(int32_t configured_max, int32_t runtime_max);
++
++// Context-gated MTP controller. The threshold is inclusive; zero disables the gate.
++int32_t common_speculative_mtp_context_limit(
++        const common_params_speculative_draft & params, int32_t n_ctx_used);
++
+ common_speculative_draft_params & common_speculative_get_draft_params(common_speculative * spec, llama_seq_id seq_id);
+ 
+ // optionally call once at the beginning of a new generation
+diff --git a/tests/test-arg-parser.cpp b/tests/test-arg-parser.cpp
+index e0907631a..7e2a6eadd 100644
+--- a/tests/test-arg-parser.cpp
++++ b/tests/test-arg-parser.cpp
+@@ -35,6 +35,19 @@ static void test(void) {
+             std::numeric_limits<int32_t>::max(),
+             std::numeric_limits<int32_t>::max());
+ 
++    printf("test-arg-parser: test MTP context gate controller boundaries\n\n");
++    common_params_speculative_draft mtp_context_gate;
++    mtp_context_gate.n_max = 6;
++    mtp_context_gate.mtp_context_threshold = 49152;
++    assert(common_speculative_mtp_context_limit(mtp_context_gate, 0) == 4);
++    assert(common_speculative_mtp_context_limit(mtp_context_gate, 49151) == 4);
++    assert(common_speculative_mtp_context_limit(mtp_context_gate, 49152) == 6);
++    assert(common_speculative_mtp_context_limit(mtp_context_gate, 65000) == 6);
++    mtp_context_gate.mtp_context_threshold = 0;
++    assert(common_speculative_mtp_context_limit(mtp_context_gate, 0) == 6);
++    assert(common_speculative_draft_limit(6, 4) == 4);
++    assert(common_speculative_draft_limit(6, -1) == 6);
++
+     {
+         common_params_speculative spec;
+         spec.synth_len = 3.4;
+@@ -172,6 +185,29 @@ static void test(void) {
+ 
+     std::vector<std::string> argv;
+ 
++    printf("test-arg-parser: test MTP context gate parser policy\n\n");
++    {
++        common_params gated_params;
++        argv = {
++            "binary_name", "--spec-type", "draft-mtp", "--spec-draft-n-max", "6",
++            "--spec-draft-n-min", "0", "--parallel", "1", "--spec-draft-mtp-context-threshold", "49152",
++        };
++        assert(common_params_parse(argv.size(), list_str_to_char(argv).data(), gated_params, LLAMA_EXAMPLE_SERVER));
++        assert(gated_params.speculative.draft.mtp_context_threshold == 49152);
++
++        const std::vector<std::vector<std::string>> invalid_gates = {
++            {"binary_name", "--spec-type", "draft-mtp", "--spec-draft-n-max", "5", "--spec-draft-mtp-context-threshold", "49152"},
++            {"binary_name", "--spec-type", "draft-mtp", "--spec-draft-n-max", "6", "--spec-draft-n-min", "5", "--spec-draft-mtp-context-threshold", "49152"},
++            {"binary_name", "--spec-type", "draft-simple", "--spec-draft-n-max", "6", "--spec-draft-mtp-context-threshold", "49152"},
++            {"binary_name", "--spec-type", "draft-mtp", "--spec-draft-n-max", "6", "--parallel", "2", "--spec-draft-mtp-context-threshold", "49152"},
++            {"binary_name", "--spec-type", "draft-mtp", "--spec-draft-n-max", "6", "--spec-draft-mtp-context-threshold", "-1"},
++        };
++        for (auto invalid : invalid_gates) {
++            common_params invalid_params;
++            assert(!common_params_parse(invalid.size(), list_str_to_char(invalid).data(), invalid_params, LLAMA_EXAMPLE_SERVER));
++        }
++    }
++
+     printf("test-arg-parser: test invalid usage\n\n");
+ 
+     // missing value
+diff --git a/tools/server/server-context.cpp b/tools/server/server-context.cpp
+index f78cfb36d..823294cab 100644
+--- a/tools/server/server-context.cpp
++++ b/tools/server/server-context.cpp
+@@ -2985,7 +2985,18 @@ private:
+                 const bool use_ckpt_tgt = ctx_tgt_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
+                 const bool use_ckpt_dft = ctx_dft_seq_rm_type == COMMON_CONTEXT_SEQ_RM_TYPE_FULL;
+ 
+-                const int n_draft_max = slot.get_n_draft_max();
++                int n_draft_max = slot.get_n_draft_max();
++
++                const auto & draft_params = params_base.speculative.draft;
++                if (draft_params.mtp_context_threshold > 0) {
++                    // slot.prompt is the authoritative active target history at this scheduling seam.
++                    // Hybrid/recurrent memory APIs can expose only one component and undercount the context.
++                    const int32_t n_ctx_used = (int32_t) slot.prompt.n_tokens();
++                    const int32_t context_limit = common_speculative_mtp_context_limit(draft_params, n_ctx_used);
++                    n_draft_max = std::min(n_draft_max, (int) context_limit);
++                    SLT_DBG(slot, "MTP context gate: target KV span = %d, threshold = %d, depth = %d\n",
++                            n_ctx_used, draft_params.mtp_context_threshold, n_draft_max);
++                }
+ 
+                 if (n_draft_max > 0) {
+                     GGML_ASSERT(slot.can_speculate());

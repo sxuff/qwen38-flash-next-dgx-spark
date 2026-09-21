@@ -2,60 +2,70 @@
 
 A pinned, checksum-verified llama.cpp recipe for `unsloth/Qwen3.8-Flash-Next-GGUF` on one NVIDIA GB10 system.
 
-**Recommended operating point:** `UD-Q3_K_XL`, native MTP depth 4, one 65,536-token slot, `-b 2048 -ub 512`.
+## Recommended architecture
 
-This repository contains scripts and measured results. It does not contain model weights.
+```text
+Target:        UD-Q3_K_XL
+Runtime:       llama.cpp 797da982 + sparse FA
+QSA selection: block-granular top-k
+MTP sidecar:   shared Q4_K_M
+MTP policy:    depth 4 below 49,152 active tokens
+               depth 6 at or above 49,152 active tokens
+p-min:         0.75
+Deployment:    one 262,144-token slot
+Batch/ubatch:  2,048 / 512
+Vision:        F16 projector
+```
+
+This repository contains the build patches, artifact manifests, service scripts, and public-safe measured results. It does not contain model weights.
 
 ## Latest measured result
 
-![Qwen3.8 Flash-Next UD-Q3_K_XL MTP-4 benchmark result card](results/q3-q3kxl-mtp4-card.png)
+![Qwen3.8 Flash-Next block-top-k adaptive MTP result on one NVIDIA GB10](results/q3-q3kxl-next-card.png)
 
-The promoted profile is:
+Against the previous `d1a92352` dense-attention, shared-Q8_0, fixed-MTP-4 deployment:
 
-```text
-q3-q3kxl-mtp4
--c 65536
--np 1
--b 2048
--ub 512
---spec-type draft-mtp
---spec-draft-n-max 4
---spec-draft-n-min 0
-```
-
-On the fixed four-task operator suite, MTP-4 improved weighted decode throughput from **58.62 to 63.11 tok/s**, a **7.65% increase**, and reduced suite wall time from **67.02 to 62.97 seconds**, a **6.05% reduction**, versus MTP-3. All five paired outputs, including the separate 32K row, matched exactly and every validator passed.
-
-This is a controlled relative benchmark, not a claim that every workload decodes at 63.11 tok/s. The suite contains exact Python copy, exact JSON copy, a structured transform, and novel-code generation. The two copy fixtures account for 2,741 of 3,440 completion tokens, or 79.68% of the weighted total, and favor speculative-draft acceptance. The separate 32K row is a deterministic repeated-token microbenchmark that reached 100% MTP acceptance. On the less predictable novel-code row, MTP-4 reached 55.54 tok/s with 89.10% acceptance. Long-form creative prose was not part of the sealed suite.
-
-The larger prefill configuration was also measured separately under MTP-3 on an exact 32,000-token cold prompt:
-
-| Metric | `-b 512 -ub 64` | `-b 2048 -ub 512` | Change |
+| Metric | Previous | New architecture | Change |
 |---|---:|---:|---:|
-| TTFT | 82.44 s | 46.80 s | 43.22% lower |
-| Prefill | 388.26 tok/s | 683.91 tok/s | 76.15% higher |
-| Total request | 87.37 s | 51.80 s | 40.72% lower |
-| Whole-request completion rate | 2.93 tok/s | 4.94 tok/s | 68.68% higher |
-| Decode | 51.78 tok/s | 51.21 tok/s | 1.10% lower |
+| 32K decode | 57.80 tok/s | 61.31 tok/s | 6.08% higher |
+| 65K decode | 49.70 tok/s | 63.55 tok/s | 27.86% higher |
+| 32K prefill | 718.40 tok/s | 760.91 tok/s | 5.92% higher |
+| 65K prefill | 604.35 tok/s | 733.07 tok/s | 21.30% higher |
+| Six-row wall time | 224.92 s | 201.13 s | 10.58% lower |
 
-Only `-b` and `-ub` changed. The generated output matched exactly, MTP acceptance remained 191/191, and service swap remained zero.
+All six outputs matched exactly. Every measured arm used one pass, one slot, temperature 0, seed 42, and fixed request bytes. Service swap remained zero.
 
-Full machine-readable values and qualifiers are in [`results/q3-q3kxl-mtp4.json`](results/q3-q3kxl-mtp4.json).
+This is a **deployment-to-deployment comparison**. Sparse FA, QSA selection, draft quantization, and speculative-depth policy changed together. The percentages must not be attributed to one component.
+
+The context gate itself is workload-specific. Versus the immediately preceding block-top-k plus fixed-MTP-4 stack, it changed:
+
+- 65K decode: `55.01 -> 63.55 tok/s`, **+15.51%**
+- 32K decode: `62.15 -> 61.31 tok/s`, **-1.35%**
+- Four-task suite decode: **-0.42%**
+- Six-row wall time: **0.32% lower**
+
+The adaptive profile is useful for deep contexts. Fixed MTP-4 remains the simpler general control.
+
+Full machine-readable values and qualifiers are in [`results/q3-q3kxl-next.json`](results/q3-q3kxl-next.json).
 
 ## Verified stack
 
 - Hardware: one NVIDIA GB10 system with 128 GB unified memory
 - Target: `unsloth/Qwen3.8-Flash-Next-GGUF`
-- Quantization: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
+- Target quantization: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
 - Target revision: `8bdc666649440e9bdc97e16f3f75782c98478ff5`
-- MTP sidecar: shared Q8_0, revision `38bb39ee97821de2c9009abb7e93950eec396e66`
-- MTP sidecar SHA-256: `5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6`
-- Native-vision projector: `mmproj-F16.gguf`, revision `824f539b2710e5a9e47af4952cf6578cf5ee8932`
+- MTP sidecar: shared Q4_K_M, 1,907,151,936 bytes
+- MTP revision: `38bb39ee97821de2c9009abb7e93950eec396e66`
+- MTP SHA-256: `f521868a9e143718bef513772f6e04d9642551e362cf2439636d2abdbd149dfc`
+- Projector: `mmproj-F16.gguf`, revision `824f539b2710e5a9e47af4952cf6578cf5ee8932`
 - Projector SHA-256: `1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980`
-- Runtime: llama.cpp PR [#28243](https://github.com/ggml-org/llama.cpp/pull/28243), commit `d1a92352cbd417fd840b4e765c0b82f5fe3d1d89`
+- Runtime base: `ggml-org/llama.cpp` commit `797da982b488254b11f844718c30e0c41f34d718`
+- Block-top-k patch SHA-256: `1c8c953bae42a9b9765330b802a3d8ce38d0f15dd09b0f12242103010c152814`
+- Context-gated MTP patch SHA-256: `68f6e9e3ea7999aabeabcc253dd78faa985a63f91299256a95bdda01945dada7`
 - CUDA target: SM121
-- API: OpenAI-compatible llama.cpp server on `127.0.0.1:8001`
+- API: OpenAI-compatible llama.cpp server bound to localhost
 
-The model is licensed separately under the [Qwen Community License 1.0](https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/f5d08274bafd880402bd16f5e3e6c514136ec06c/LICENSE). Review it before downloading or deploying the weights. The scripts in this repository are MIT licensed.
+The model is licensed separately under the [Qwen Community License 1.0](https://huggingface.co/Qwen/Qwen3.8-Flash-Next/blob/f5d08274bafd880402bd16f5e3e6c514136ec06c/LICENSE). Review it before downloading or deploying the weights. The scripts and recipe patches in this repository are MIT licensed.
 
 ## 1. Preflight the host
 
@@ -69,7 +79,7 @@ free -h
 df -h "$HOME"
 ```
 
-`uname -m` must report `aarch64`. Both GPU checks must pass. Keep at least 10 GiB free beyond the downloads and at least 6 GiB `MemAvailable` while serving.
+`uname -m` must report `aarch64`. Keep at least 10 GiB free beyond the downloads and at least 6 GiB `MemAvailable` while serving.
 
 Install build dependencies:
 
@@ -78,69 +88,64 @@ sudo apt-get update
 sudo apt-get install -y git clang cmake ninja-build libcurl4-openssl-dev libssl-dev python3
 ```
 
-## 2. Download and verify the exact artifacts
+## 2. Download and verify the artifacts
 
-The downloader is resumable, pins each Hub revision, verifies every size and SHA-256, and requires a 10 GiB disk reserve.
-
-Download the Q3 target:
+The downloader is resumable, pins every Hub revision, verifies size and SHA-256, and requires a disk reserve.
 
 ```bash
 export MODEL_ROOT="$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944"
+export MTP_ROOT="$HOME/models/Qwen3.8-Flash-Next-MTP-38bb39ee9782"
 
 python3 scripts/download_model.py \
   --manifest manifests/q3-q3kxl.json \
   --destination "$MODEL_ROOT"
-```
 
-Download the F16 projector into the same model root for native vision:
-
-```bash
 python3 scripts/download_model.py \
   --manifest manifests/q3-mmproj-f16.json \
   --destination "$MODEL_ROOT"
-```
-
-Download the shared Q8_0 MTP sidecar:
-
-```bash
-export MTP_ROOT="$HOME/models/Qwen3.8-Flash-Next-MTP-38bb39ee9782"
 
 python3 scripts/download_model.py \
-  --manifest manifests/q3-mtp-shared-q8.json \
+  --manifest manifests/q3-mtp-shared-q4.json \
   --destination "$MTP_ROOT"
 ```
 
-For authenticated Hub access, export `HF_TOKEN` in the shell. Do not put tokens in command arguments or unit files.
+For authenticated Hub access, export `HF_TOKEN` in the shell. Do not put tokens in command arguments or unit files. Use `--verify-only` to verify existing artifacts without network writes.
 
-To verify existing downloads without network writes, rerun each command with `--verify-only`.
-
-## 3. Build the pinned MTP runtime
+## 3. Build the pinned runtime and patch set
 
 ```bash
-export LLAMA_ROOT="$HOME/src/llama.cpp-qwen38-flash-next-mtp"
-
+export LLAMA_ROOT="$HOME/src/llama.cpp-qwen38-flash-next-next"
 JOBS=2 bash scripts/build_llama_mtp.sh "$LLAMA_ROOT"
 ```
 
-The script fetches the exact MTP runtime commit, builds `llama-server` for SM121, and verifies that the binary enumerates the CUDA device.
+The build script:
 
-## 4. Install the promoted MTP-4 profile
+1. fetches the exact base commit;
+2. verifies both recipe-patch hashes;
+3. applies block-granular QSA top-k;
+4. applies the context-gated MTP-4/MTP-6 controller;
+5. builds `llama-server` and `test-arg-parser` for SM121;
+6. executes the parser/controller tests and CUDA device probe.
+
+## 4. Install the new profile
 
 ```bash
 bash scripts/install_service.sh \
   "$MODEL_ROOT" \
   "$LLAMA_ROOT" \
-  q3-q3kxl-mtp4 \
-  "$MTP_ROOT/MTP/mtp-Qwen3.8-Flash-Next-shared-Q8_0.gguf" \
+  q3-q3kxl-next \
+  "$MTP_ROOT/MTP/mtp-Qwen3.8-Flash-Next-shared-Q4_K_M.gguf" \
   "$MODEL_ROOT/mmproj-F16.gguf"
 
 systemctl --user enable --now qwen38-flash-next-llama.service
 ```
 
-The installer verifies the target, sidecar, and projector before writing the service environment. The service binds to localhost, disables service swap, caps its cgroup at 110 GiB, and launches with:
+The installer verifies the target, Q4_K_M sidecar, and projector before writing the service environment. The service binds to localhost, disables service swap, and caps its cgroup at 110 GiB.
+
+The promoted deployment flags are:
 
 ```text
--c 65536
+-c 262144
 -np 1
 -b 2048
 -ub 512
@@ -156,115 +161,70 @@ The installer verifies the target, sidecar, and projector before writing the ser
 --load-mode mmap
 --fit off
 --spec-type draft-mtp
---spec-draft-n-max 4
+--spec-draft-n-max 6
 --spec-draft-n-min 0
-```
-
-Follow startup without exposing the server publicly:
-
-```bash
-journalctl --user -u qwen38-flash-next-llama.service -f
+--spec-draft-p-min 0.75
+--spec-draft-mtp-context-threshold 49152
 ```
 
 ## 5. Verify readiness and generation
 
-A running process is not a ready model. Wait for model loading, then run a real request:
-
 ```bash
+journalctl --user -u qwen38-flash-next-llama.service -f
 python3 scripts/smoke.py --base-url http://127.0.0.1:8001
 ```
 
-The smoke script requires HTTP health and a nonempty completion.
+A running process is not a ready model. Require model identity, real generation, advertised multimodal capability when the projector is installed, and zero service swap.
 
-## Additional measured behavior
+## Context and vision validation
 
-### MTP-3 versus MTP-4
+The service allocates 262,144 tokens. A controlled promotion request completed:
 
-| Measurement | MTP-3 | MTP-4 | Change |
-|---|---:|---:|---:|
-| Four-task weighted decode | 58.62 tok/s | 63.11 tok/s | 7.65% higher |
-| Four-task suite wall | 67.02 s | 62.97 s | 6.05% lower |
-| 32K decode | 52.52 tok/s | 57.79 tok/s | 10.02% higher |
-| 32K TTFT | 44.69 s | 44.78 s | effectively unchanged |
+- 70,000 prompt tokens
+- 16 completion tokens
+- 97.14 seconds wall time
+- 40.85 GiB minimum `MemAvailable`
+- 2.78 MiB maximum host-swap growth
+- zero service swap
 
-MTP-4 also reached 55.54 decode tok/s on the novel-code case with 89.10% draft acceptance. MTP-3 reached 52.32 tok/s on the same request.
+This proves operation above the previous 65K boundary. It is not a complete 256K stress test, and the throughput comparison above remains a 65K measurement.
 
-### Exact-prefix reuse
+The promoted runtime also completed a real screenshot request through its F16 projector:
 
-A byte-identical 32K repeat under the MTP-3 control reused **31,996 of 32,000 tokens**:
+- 4,040 prompt tokens including image tokens
+- 57 completion tokens
+- 13.35 seconds wall time
+- HTTP 200
+- zero service swap
 
-- Uncached TTFT: 44.69 seconds
-- Cached TTFT: 0.140 seconds
-- Uncached request wall: 49.55 seconds
-- Cached request wall: 5.01 seconds
-- Output matched exactly
+A separate client can still time out if it sends tens of thousands of conversation-history tokens with the image. That is a client timeout and prompt-size issue, not evidence that the projector failed.
 
-That is a **99.69% TTFT reduction** and an **89.88% request-wall reduction** for the exact repeated prefix. This cache row was not rerun under MTP-4.
+## Evidence boundaries
 
-### Practical context boundary
+- One measured sweep per condition. No variance estimate.
+- The 32K and 65K rows use deterministic synthetic long prompts and forced 256-token outputs.
+- Absolute tok/s values are workload-scoped.
+- The two copy-heavy operator fixtures favor speculative acceptance.
+- Long-form creative prose is not represented by the headline rates.
+- Raw prompts, outputs, SSE, host paths, credentials, and private deployment logs are intentionally excluded.
 
-The MTP-3 control completed **65,000 input tokens plus 256 output tokens** inside the configured 65,536-token context:
+Historical MTP-3/MTP-4, n-gram, vision, and Q1 receipts remain under [`results/`](results/) for reproduction. They are not the current recommendation.
 
-- Occupied context: 65,256 / 65,536 tokens
-- Remaining headroom: 280 tokens
-- TTFT: 108.18 seconds
-- Prefill: 600.95 tok/s
-- Decode: 44.01 tok/s
-- No truncation, context shift, OOM, or safety intervention
+## Prior art
 
-This verifies the 65K boundary for MTP-3 with the promoted batch settings. It was not rerun under MTP-4, so the repository does not claim an MTP-4 65K boundary measurement.
+[`MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark`](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark) established a single-Spark vLLM/NVFP4/PLE/MTP lane. [`Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark`](https://github.com/Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark) established a one-Spark llama.cpp MTP recipe with UD-Q4_K_XL and the shared Q8_0 sidecar. Unsloth publishes the target artifacts and shared MTP sidecars.
 
-### Rejected two-slot profile
+## Safety
 
-A separate `ngram-mod`, two-slot test produced real overlap but no aggregate gain:
-
-- Serial aggregate whole-request completion rate: 4.850 tok/s
-- Concurrent aggregate whole-request completion rate: 4.799 tok/s
-- Change: 1.06% lower
-- Maximum per-request wall ratio versus serial: 2.016x
-
-The profile failed both promotion gates and is intentionally not included as an installer option. The first parent startup was nullified before any primary request when `nvidia-smi` blocked for more than 15 seconds during model loading. A sealed missing-cell amendment then collected only the four two-slot rows. No MTP, warm-cache, or context-boundary row was repeated.
-
-During the valid amendment, minimum host `MemAvailable` was 50.31 GiB, maximum host swap growth was 230.54 MiB, and maximum service swap was zero.
-
-## Retained alternatives
-
-The installer still retains the earlier `q1-iq1s`, `q3-q3kxl`, and `q3-q3kxl-mtp3` profiles for reproduction and comparison. They are not the current recommendation. Their historical machine-readable measurements remain under [`results/`](results/), but the README no longer presents their old result tables as the current recipe.
-
-## Earlier native-vision validation
-
-The pinned F16 projector was hash-verified and exercised with two direct OpenAI-compatible API checks on the earlier non-MTP llama.cpp runtime commit `b8bdf73bb9baf044caadd33be2a51be70156ec57`:
-
-- A generated 64×64 red square returned exactly `red`.
-- A 2,108×972 screenshot returned the exact visible error banner.
-
-That server advertised both `completion` and `multimodal` capabilities. Machine-readable evidence is in [`results/q3-q3kxl-vision.json`](results/q3-q3kxl-vision.json). The current installer preserves the verified projector and passes it to the MTP-4 runtime, but the latest MTP-4 optimization sweep did not repeat the image requests.
-
-For a named Hermes provider, mark the served model as vision-capable only after `/v1/models` advertises `multimodal` and a real image request passes on the installed runtime.
-
-## Prior art and scope
-
-[`MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark`](https://github.com/MiaAI-Lab/Qwen3.8-Flash-Next-Single-DGX-Spark) established a single-Spark vLLM/NVFP4/PLE/MTP lane. [`Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark`](https://github.com/Weschera/Qwen3.8-Flash-Next-1x-DGX-Spark) established a one-Spark llama.cpp MTP recipe with UD-Q4_K_XL and the shared Q8_0 sidecar. [Unsloth publishes the sidecar and MTP guidance](https://huggingface.co/unsloth/Qwen3.8-Flash-Next-GGUF/tree/38bb39ee97821de2c9009abb7e93950eec396e66/MTP).
-
-This repository claims only the measured results for its pinned UD-Q3_K_XL target, runtime, prompts, and one-pass operator suite. It does not report repeated-run confidence intervals or claim that MTP-4 wins on every workload.
-
-## Safety and troubleshooting
-
-Before changing runtime flags, check:
+Inspect the live service before and during long-context requests:
 
 ```bash
-systemctl --user status qwen38-flash-next-llama.service --no-pager
 systemctl --user show qwen38-flash-next-llama.service \
-  -p MemoryCurrent -p MemorySwapCurrent -p MemoryMax -p MemorySwapMax
+  -p ActiveState -p MemoryCurrent -p MemorySwapCurrent -p MemoryMax -p MemorySwapMax
 awk '/MemAvailable|SwapTotal|SwapFree/ {print}' /proc/meminfo
-nvidia-smi
 ```
 
 Stop the owned service if `MemAvailable` drops below 6 GiB, service swap becomes nonzero, or host swap grows by more than 512 MiB from the pre-launch baseline. Do not kill unrelated workloads to make this model fit.
-
-For the MTP-4 sweep, minimum host `MemAvailable` was 47.87 GiB, maximum host swap growth was 69.29 MiB, and maximum service swap was zero.
-
-If startup fails, diagnose in this order: GPU visibility, exact shard verification, disk/cache, pinned binary and CUDA device list, service logs, health endpoint, then generation.
 
 ## Cleanup
 

@@ -7,6 +7,7 @@ MODEL_REVISION = "d3bc75ee6ccef3efc1e228ec00a6cc2cdb1e2249"
 VALIDATED_LLAMA_COMMIT = "bea3b12daee45876b0129a3602dc8f534ce30bf0"
 LLAMA_COMMIT = "b8bdf73bb9baf044caadd33be2a51be70156ec57"
 MTP_COMMIT = "d1a92352cbd417fd840b4e765c0b82f5fe3d1d89"
+NEXT_BASE_COMMIT = "797da982b488254b11f844718c30e0c41f34d718"
 
 manifest = json.loads((ROOT / "manifests/q1-iq1s.json").read_text())
 assert manifest["revision"] == MODEL_REVISION
@@ -45,6 +46,13 @@ assert mtp_manifest["files"] == [{
     "bytes": 2786568256,
     "sha256": "5ff54097406a905cf3a724c709124ceb0e3e10235ee862298969e91c96fa96e6",
 }]
+
+mtp_q4_manifest = json.loads((ROOT / "manifests/q3-mtp-shared-q4.json").read_text())
+assert mtp_q4_manifest["artifact_type"] == "speculative_draft_sidecar"
+assert mtp_q4_manifest["revision"] == "38bb39ee97821de2c9009abb7e93950eec396e66"
+assert mtp_q4_manifest["variant"] == "shared-Q4_K_M"
+assert mtp_q4_manifest["total_bytes"] == 1907151936
+assert mtp_q4_manifest["files"][0]["sha256"] == "f521868a9e143718bef513772f6e04d9642551e362cf2439636d2abdbd149dfc"
 
 results = json.loads((ROOT / "results/q1-iq1s.json").read_text())
 assert results["model"]["revision"] == MODEL_REVISION
@@ -93,6 +101,13 @@ assert mtp4_results["mtp3_vs_mtp4"]["promotion_gate_passed"] is True
 assert mtp4_results["rejected_two_slot_ngram_mod"]["promoted"] is False
 assert mtp4_results["safety"]["maximum_service_swap_bytes_in_every_valid_stage"] == 0
 
+next_results = json.loads((ROOT / "results/q3-q3kxl-next.json").read_text())
+assert next_results["stack"]["target"]["revision"] == q3_revision
+assert next_results["stack"]["runtime"]["base_commit"] == NEXT_BASE_COMMIT
+assert next_results["decision"]["deep_context_profile"] == "block-top-k-context-gated-mtp46-q4"
+assert next_results["before_to_after"]["exact_output_matches"] == "6/6"
+assert next_results["safety"]["maximum_service_swap_bytes"] == 0
+
 readme = (ROOT / "README.md").read_text()
 build = (ROOT / "scripts/build_llama.sh").read_text()
 build_mtp = (ROOT / "scripts/build_llama_mtp.sh").read_text()
@@ -105,11 +120,11 @@ all_public_text = "\n".join(
     if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts
 )
 
-for required in (q3_revision, projector_revision, projector_sha256, MTP_COMMIT, "SM121", "UD-Q3_K_XL"):
+for required in (q3_revision, projector_revision, projector_sha256, NEXT_BASE_COMMIT, "SM121", "UD-Q3_K_XL"):
     assert required in readme or required in build_mtp
-for required_flag in ("--no-kv-unified", "-ngl 99", "--no-context-shift", "--host", "127.0.0.1", "draft-mtp", "--mmproj"):
+for required_flag in ("--no-kv-unified", "-ngl 99", "--no-context-shift", "--host", "127.0.0.1", "draft-mtp", "--mmproj", "--spec-draft-mtp-context-threshold"):
     assert required_flag in server
-for required_profile_value in ("q3-q3kxl-mtp4", "ctx_size=65536", "parallel=1", "batch_size=2048", "ubatch_size=512", "spec_mode=mtp-4"):
+for required_profile_value in ("q3-q3kxl-next", "ctx_size=262144", "parallel=1", "batch_size=2048", "ubatch_size=512", "spec_mode=mtp-46", "spec_p_min=0.75", "mtp_context_threshold=49152"):
     assert required_profile_value in installer
 assert "MMPROJ_PATH" in installer
 assert "MemorySwapMax=0" in service

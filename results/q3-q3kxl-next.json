@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "status": "completed-one-pass-deployment-comparison",
+  "evidence_label": "One measured sweep per condition on one NVIDIA GB10. No repeated-run variance estimate.",
+  "claim_scope": "Deployment-to-deployment comparison. Runtime, QSA selection, draft quantization, and speculative-depth policy changed together.",
+  "decision": {
+    "general_default": "block-top-k-mtp4-q4",
+    "deep_context_profile": "block-top-k-context-gated-mtp46-q4",
+    "deep_context_threshold_tokens": 49152,
+    "configured_deployment_context_tokens": 262144,
+    "benchmark_context_tokens": 65536,
+    "parallel_slots": 1,
+    "batch_size": 2048,
+    "micro_batch_size": 512
+  },
+  "stack": {
+    "hardware": "one NVIDIA GB10 with 128 GB unified memory",
+    "target": {
+      "repo": "unsloth/Qwen3.8-Flash-Next-GGUF",
+      "revision": "8bdc666649440e9bdc97e16f3f75782c98478ff5",
+      "variant": "UD-Q3_K_XL",
+      "bytes": 89986353824
+    },
+    "runtime": {
+      "repo": "https://github.com/ggml-org/llama.cpp.git",
+      "base_commit": "797da982b488254b11f844718c30e0c41f34d718",
+      "block_topk_patch_sha256": "1c8c953bae42a9b9765330b802a3d8ce38d0f15dd09b0f12242103010c152814",
+      "context_gated_mtp_patch_sha256": "68f6e9e3ea7999aabeabcc253dd78faa985a63f91299256a95bdda01945dada7"
+    },
+    "draft": {
+      "revision": "38bb39ee97821de2c9009abb7e93950eec396e66",
+      "file": "MTP/mtp-Qwen3.8-Flash-Next-shared-Q4_K_M.gguf",
+      "bytes": 1907151936,
+      "sha256": "f521868a9e143718bef513772f6e04d9642551e362cf2439636d2abdbd149dfc"
+    },
+    "speculation": {
+      "below_threshold_depth": 4,
+      "at_or_above_threshold_depth": 6,
+      "threshold_tokens": 49152,
+      "p_min": 0.75
+    }
+  },
+  "before": {
+    "runtime": "d1a92352 dense attention",
+    "draft": "shared Q8_0",
+    "speculation": "fixed MTP-4",
+    "suite_decode_tokens_per_second": 62.89738830479745,
+    "long32_prefill_tokens_per_second": 718.3971750827081,
+    "long32_decode_tokens_per_second": 57.79563823542691,
+    "long65_prefill_tokens_per_second": 604.3457966978137,
+    "long65_decode_tokens_per_second": 49.700052418024036,
+    "six_row_wall_seconds": 224.923619326
+  },
+  "after": {
+    "runtime": "797da982 sparse FA plus block-granular QSA top-k",
+    "draft": "shared Q4_K_M",
+    "speculation": "MTP-4 below 49,152 tokens, MTP-6 at or above, p_min 0.75",
+    "suite_decode_tokens_per_second": 63.866122349073216,
+    "long32_prefill_tokens_per_second": 760.9080267403054,
+    "long32_decode_tokens_per_second": 61.307086237038014,
+    "long65_prefill_tokens_per_second": 733.0654742165027,
+    "long65_decode_tokens_per_second": 63.54564861242123,
+    "six_row_wall_seconds": 201.133670022
+  },
+  "before_to_after": {
+    "suite_decode_increase_fraction": 0.015401816679276648,
+    "long32_prefill_increase_fraction": 0.05917458064025024,
+    "long32_decode_increase_fraction": 0.06075628038412595,
+    "long65_prefill_increase_fraction": 0.21299010967234654,
+    "long65_decode_increase_fraction": 0.27858313061609575,
+    "six_row_wall_reduction_fraction": 0.10576901338902655,
+    "exact_output_matches": "6/6"
+  },
+  "gated_vs_fixed_block_topk": {
+    "long65_decode_tokens_per_second_before": 55.01235629096378,
+    "long65_decode_tokens_per_second_after": 63.54564861242123,
+    "long65_decode_increase_fraction": 0.15511592116368078,
+    "long32_decode_change_fraction": -0.013506717436599924,
+    "suite_decode_change_fraction": -0.004239485185584702,
+    "six_row_wall_reduction_fraction": 0.0032053195067853757,
+    "qualification": "The context gate is retained as a deep-context profile. Fixed MTP-4 remains the general default."
+  },
+  "safety": {
+    "minimum_mem_available_bytes": 52668452864,
+    "maximum_host_swap_growth_bytes": 87171072,
+    "maximum_service_swap_bytes": 0
+  },
+  "deployment_256k_validation": {
+    "configured_context_tokens": 262144,
+    "validated_prompt_tokens": 70000,
+    "validated_completion_tokens": 16,
+    "elapsed_seconds": 97.13697633403353,
+    "minimum_mem_available_bytes": 43858919424,
+    "maximum_host_swap_growth_bytes": 2912256,
+    "maximum_service_swap_bytes": 0,
+    "qualification": "This proves operation above the previous 65K boundary. It is not a full 256K stress test."
+  },
+  "result_card": {
+    "path": "results/q3-q3kxl-next-card.png",
+    "bytes": 299563,
+    "width": 1472,
+    "height": 1312,
+    "sha256": "d69596d4e34710338c08276d60c9685f2019c44020f8b1f4b1409eb85f818029"
+  },
+  "public_boundary": "Raw prompts, generations, SSE, full server logs, host paths, credentials, and private deployment details are excluded."
+}
