@@ -1,11 +1,11 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A pinned, checksum-verified llama.cpp recipe for `unsloth/Qwen3.8-Flash-Next-GGUF` on one NVIDIA GB10 system.
+A pinned, checksum-verified llama.cpp recipe for the `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF` IQ3_XXS target on one NVIDIA GB10 system.
 
 ## Recommended architecture
 
 ```text
-Target:        UD-Q3_K_XL
+Target:        GSQ-RCO IQ3_XXS
 Runtime:       llama.cpp 797da982 + sparse FA
 QSA selection: block-granular top-k
 MTP sidecar:   shared Q4_K_M
@@ -21,45 +21,39 @@ This repository contains the build patches, artifact manifests, service scripts,
 
 ## Latest measured result
 
-![Qwen3.8 Flash-Next block-top-k adaptive MTP result on one NVIDIA GB10](results/q3-q3kxl-next-card.png)
+![Measured GSQ-RCO IQ3_XXS versus UD-Q3_K_XL on one GX10: 65K decode 61.66 to 71.11 tok/s, with quality and real-text prefill trade-offs](results/gsq-iq3xxs-card.png)
 
-Against the previous `d1a92352` dense-attention, shared-Q8_0, fixed-MTP-4 deployment:
+The measured swap changed **only the target GGUF**: Unsloth UD-Q3_K_XL to ISTA-DASLab GSQ-RCO IQ3_XXS. Both arms used the same pinned, patched llama.cpp binary, shared Q4_K_M MTP sidecar, context gate, flags, and requests.
 
-| Metric | Previous | New architecture | Change |
+| Metric | UD-Q3_K_XL | GSQ-RCO IQ3_XXS | Change |
 |---|---:|---:|---:|
-| 32K decode | 57.80 tok/s | 61.31 tok/s | 6.08% higher |
-| 65K decode | 49.70 tok/s | 63.55 tok/s | 27.86% higher |
-| 32K prefill | 718.40 tok/s | 760.91 tok/s | 5.92% higher |
-| 65K prefill | 604.35 tok/s | 733.07 tok/s | 21.30% higher |
-| Six-row wall time | 224.92 s | 201.13 s | 10.58% lower |
+| 32K decode | 62.18 tok/s | 68.40 tok/s | +10.0% |
+| 65K decode | 61.66 tok/s | 71.11 tok/s | +15.3% |
+| Six-row wall time | 204.63 s | 193.05 s | -5.7% |
+| Target GGUF size | 89.99 GB | 75.84 GB | -15.7% |
+| Wikitext-2 raw-test perplexity | 4.0486 | 4.0824 | +0.8% |
+| Source-code perplexity | 1.3748 | 1.3861 | +0.8% |
+| 30K real-text prefill | 539.42 tok/s | 529.74 tok/s | -1.8% |
+| Four local task checks | 4/4 | 4/4 | unchanged |
 
-All six outputs matched exactly. Every measured arm used one pass, one slot, temperature 0, seed 42, and fixed request bytes. Service swap remained zero.
+This is **one local pass per row**, not a repeated-run performance claim. The 32K and 65K decode rows use deterministic synthetic prompts with a forced 256-token output; the 30K prefill row uses real source text. Perplexity is measured at 4,096 context on two fixed corpora and rises slightly, but stays within the predeclared 2% limit. Smoke, tool-call, JSON, vision, and bounded long-generation checks passed with no detected loops. The previous outputs are not claimed to match the new quant's outputs.
 
-This is a **deployment-to-deployment comparison**. Sparse FA, QSA selection, draft quantization, and speculative-depth policy changed together. The percentages must not be attributed to one component.
-
-The context gate itself is workload-specific. Versus the immediately preceding block-top-k plus fixed-MTP-4 stack, it changed:
-
-- 65K decode: `55.01 -> 63.55 tok/s`, **+15.51%**
-- 32K decode: `62.15 -> 61.31 tok/s`, **-1.35%**
-- Four-task suite decode: **-0.42%**
-- Six-row wall time: **0.32% lower**
-
-The adaptive profile is useful for deep contexts. Fixed MTP-4 remains the simpler general control.
-
-Full machine-readable values and qualifiers are in [`results/q3-q3kxl-next.json`](results/q3-q3kxl-next.json).
+Full machine-readable values, artifact hashes, and qualifiers: [`results/gsq-iq3xxs.json`](results/gsq-iq3xxs.json). Historical results remain in `results/` for comparison, not as current recommendations.
 
 ## Verified stack
 
 - Hardware: one NVIDIA GB10 system with 128 GB unified memory
-- Target: `unsloth/Qwen3.8-Flash-Next-GGUF`
-- Target quantization: `UD-Q3_K_XL`, 3 GGUF shards, 89,986,353,824 bytes
-- Target revision: `8bdc666649440e9bdc97e16f3f75782c98478ff5`
+- Target: `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF`
+- Target quantization: `IQ3_XXS`, 2 GGUF shards, 75,839,998,528 bytes
+- Target revision: `c67535ccaa71f61547bb323a2828d5298221d83e`
+- Target shard SHA-256 values: [`manifests/gsq-iq3xxs.json`](manifests/gsq-iq3xxs.json)
 - MTP sidecar: shared Q4_K_M, 1,907,151,936 bytes
 - MTP revision: `38bb39ee97821de2c9009abb7e93950eec396e66`
 - MTP SHA-256: `f521868a9e143718bef513772f6e04d9642551e362cf2439636d2abdbd149dfc`
 - Projector: `mmproj-F16.gguf`, revision `824f539b2710e5a9e47af4952cf6578cf5ee8932`
 - Projector SHA-256: `1f7b7f0b984cf065c604360c29c8098362ed61b290db0ff12c6f360bb1a8a980`
 - Runtime base: `ggml-org/llama.cpp` commit `797da982b488254b11f844718c30e0c41f34d718`
+- Measured `llama-server` SHA-256: `3eba0da6c1b3f1f28e77901245432f20f505b3a10a98bd096480b62e87049793`
 - Block-top-k patch SHA-256: `1c8c953bae42a9b9765330b802a3d8ce38d0f15dd09b0f12242103010c152814`
 - Context-gated MTP patch SHA-256: `68f6e9e3ea7999aabeabcc253dd78faa985a63f91299256a95bdda01945dada7`
 - CUDA target: SM121
@@ -93,11 +87,11 @@ sudo apt-get install -y git clang cmake ninja-build libcurl4-openssl-dev libssl-
 The downloader is resumable, pins every Hub revision, verifies size and SHA-256, and requires a disk reserve.
 
 ```bash
-export MODEL_ROOT="$HOME/models/Qwen3.8-Flash-Next-UD-Q3_K_XL-8bdc66664944"
+export MODEL_ROOT="$HOME/models/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-c67535ccaa71"
 export MTP_ROOT="$HOME/models/Qwen3.8-Flash-Next-MTP-38bb39ee9782"
 
 python3 scripts/download_model.py \
-  --manifest manifests/q3-q3kxl.json \
+  --manifest manifests/gsq-iq3xxs.json \
   --destination "$MODEL_ROOT"
 
 python3 scripts/download_model.py \
@@ -127,20 +121,20 @@ The build script:
 5. builds `llama-server` and `test-arg-parser` for SM121;
 6. executes the parser/controller tests and CUDA device probe.
 
-## 4. Install the new profile
+## 4. Install the GSQ-RCO profile
 
 ```bash
 bash scripts/install_service.sh \
   "$MODEL_ROOT" \
   "$LLAMA_ROOT" \
-  q3-q3kxl-next \
+  gsq-iq3xxs \
   "$MTP_ROOT/MTP/mtp-Qwen3.8-Flash-Next-shared-Q4_K_M.gguf" \
   "$MODEL_ROOT/mmproj-F16.gguf"
 
 systemctl --user enable --now qwen38-flash-next-llama.service
 ```
 
-The installer verifies the target, Q4_K_M sidecar, and projector before writing the service environment. The service binds to localhost, disables service swap, and caps its cgroup at 110 GiB.
+The installer verifies the target, Q4_K_M sidecar, and projector before writing the service environment. This is a reproducible **localhost** service recipe, not an installer for external access proxies. It writes the generic `qwen38-flash-next-llama.service` unit; inspect that unit before installing alongside an existing deployment. The service disables service swap and caps its cgroup at 110 GiB.
 
 The promoted deployment flags are:
 
@@ -178,37 +172,20 @@ A running process is not a ready model. Require model identity, real generation,
 
 ## Context and vision validation
 
-The service allocates 262,144 tokens. A controlled promotion request completed:
+The configured context is 262,144 tokens, but the controlled throughput comparison stopped at 65K and is **not** a full 256K stress test. Both quants passed the same vision check with the unchanged F16 projector and a fixed red image, plus tool-call, JSON, smoke, and bounded long-generation checks. These are local functional checks, not general quality certification.
 
-- 70,000 prompt tokens
-- 16 completion tokens
-- 97.14 seconds wall time
-- 40.85 GiB minimum `MemAvailable`
-- 2.78 MiB maximum host-swap growth
-- zero service swap
-
-This proves operation above the previous 65K boundary. It is not a complete 256K stress test, and the throughput comparison above remains a 65K measurement.
-
-The promoted runtime also completed a real screenshot request through its F16 projector:
-
-- 4,040 prompt tokens including image tokens
-- 57 completion tokens
-- 13.35 seconds wall time
-- HTTP 200
-- zero service swap
-
-A separate client can still time out if it sends tens of thousands of conversation-history tokens with the image. That is a client timeout and prompt-size issue, not evidence that the projector failed.
+Long client conversations can prefill many thousands of history tokens before the first streamed response; a client-side first-chunk watchdog can fire even while the server is actively processing. Check the actual `/slots` and `/metrics` endpoints before treating a delayed first chunk as a downed service.
 
 ## Evidence boundaries
 
 - One measured sweep per condition. No variance estimate.
 - The 32K and 65K rows use deterministic synthetic long prompts and forced 256-token outputs.
 - Absolute tok/s values are workload-scoped.
-- The two copy-heavy operator fixtures favor speculative acceptance.
-- Long-form creative prose is not represented by the headline rates.
+- The task suite and its copy-heavy fixtures favor speculative acceptance.
+- Long-form creative prose is not represented by the synthetic headline rates.
 - Raw prompts, outputs, SSE, host paths, credentials, and private deployment logs are intentionally excluded.
 
-Historical MTP-3/MTP-4, n-gram, vision, and Q1 receipts remain under [`results/`](results/) for reproduction. They are not the current recommendation.
+Historical MTP-3/MTP-4, n-gram, vision, and Q1 receipts remain under [`results/`](results/) for reproduction. Their earlier comparisons involved other runtime or policy changes and must not be conflated with this controlled quant swap. The old result-card image is no longer the README artifact.
 
 ## Prior art
 

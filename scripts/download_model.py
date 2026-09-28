@@ -11,7 +11,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_MANIFEST_PATH = ROOT / "manifests" / "q1-iq1s.json"
+DEFAULT_MANIFEST_PATH = ROOT / "manifests" / "gsq-iq3xxs.json"
 CHUNK_BYTES = 8 * 1024 * 1024
 
 

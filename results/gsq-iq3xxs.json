@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "status": "completed-one-pass-quantization-comparison",
+  "evidence_label": "One local pass per row on one NVIDIA GB10; no variance estimate. The target GGUF changed; patched llama.cpp runtime, Q4_K_M MTP sidecar, context gate, flags and request bytes were held constant.",
+  "result_card": {
+    "path": "results/gsq-iq3xxs-card.png",
+    "bytes": 320562,
+    "width": 1600,
+    "height": 1150,
+    "sha256": "d2c53ad16e1ef3cf7bf8b4d54a5fdc465b00a9e9fc9777250e0a1d30a82d4776"
+  },
+  "runtime": {
+    "base_commit": "797da982b488254b11f844718c30e0c41f34d718",
+    "block_topk_patch_sha256": "1c8c953bae42a9b9765330b802a3d8ce38d0f15dd09b0f12242103010c152814",
+    "context_gated_mtp_patch_sha256": "68f6e9e3ea7999aabeabcc253dd78faa985a63f91299256a95bdda01945dada7",
+    "llama_server_sha256": "3eba0da6c1b3f1f28e77901245432f20f505b3a10a98bd096480b62e87049793"
+  },
+  "target_manifests": ["manifests/q3-q3kxl.json", "manifests/gsq-iq3xxs.json"],
+  "constant_artifacts": ["manifests/q3-mtp-shared-q4.json", "manifests/q3-mmproj-f16.json"],
+  "benchmark": {
+    "context_tokens": [32000, 65000],
+    "decode_output_cap_tokens": 256,
+    "long_prompt_type": "synthetic deterministic",
+    "real_text_prefill_tokens": 30000,
+    "real_text_prompt_sha256": "8c8e6c006683f7301b6908e04667d6908a2fbef228925e49efd7d6094aeb6271",
+    "corpora": {
+      "wikitext2_raw_test_sha256": "173c87a53759e0201f33e0ccf978e510c2042d7f2cb78229d9a50d79b9e7dd08",
+      "source_code_sha256": "fd335ecacf8a5888f4470273a51f515e5a44ab4dfedb1173de14185f3861a316"
+    },
+    "perplexity_context_tokens": 4096,
+    "unchanged_request_sha256": {
+      "long32": "1f894315317553b729e4ac64cb09f5c8571e91f5cb222121263d2158e87b394a",
+      "long65": "6d3f47f10429f181debd0772d8fb42115723386ccfa9860a87a778793c656af6",
+      "real30": "308acdce73c7070e72c494b559aca88542a40bb57a7d524cac2ea05c77b3ea01"
+    }
+  },
+  "arms": {
+    "UD-Q3_K_XL": {
+      "weight_bytes": 89986353824,
+      "long32_prefill_tokens_per_second": 756.1710052371932,
+      "long32_decode_tokens_per_second": 62.18271029172434,
+      "long65_prefill_tokens_per_second": 717.7119686939781,
+      "long65_decode_tokens_per_second": 61.65554779509168,
+      "real30_prefill_tokens_per_second": 539.4247671379699,
+      "six_row_wall_seconds": 204.631249524,
+      "wikitext2_perplexity": 4.0486,
+      "source_code_perplexity": 1.3748,
+      "four_task_passes": 4,
+      "four_task_total": 4,
+      "functional": {"smoke": true, "tool_call": true, "json": true, "vision": true, "long_generation_no_detected_loops": true}
+    },
+    "GSQ-RCO IQ3_XXS": {
+      "weight_bytes": 75839998528,
+      "long32_prefill_tokens_per_second": 762.7297994647495,
+      "long32_decode_tokens_per_second": 68.40347361389446,
+      "long65_prefill_tokens_per_second": 736.0002866098347,
+      "long65_decode_tokens_per_second": 71.10518567897111,
+      "real30_prefill_tokens_per_second": 529.7381675519798,
+      "six_row_wall_seconds": 193.045290198,
+      "wikitext2_perplexity": 4.0824,
+      "source_code_perplexity": 1.3861,
+      "four_task_passes": 4,
+      "four_task_total": 4,
+      "functional": {"smoke": true, "tool_call": true, "json": true, "vision": true, "long_generation_no_detected_loops": true}
+    }
+  },
+  "promotion_gate": "Both perplexities <= 102% of baseline; all functional checks pass with zero detected loops; 32K/65K decode >= baseline; six-row wall <= baseline.",
+  "decision": "GSQ-RCO IQ3_XXS passed the local gate and was subsequently served as the live target. Q2_0 failed the quality gate and is not recommended.",
+  "limitations": "The 32K/65K prompts are synthetic; the real-text prefill row was 1.8% slower. Absolute throughput is workload-scoped. Functional checks are not broad quality certification."
+}

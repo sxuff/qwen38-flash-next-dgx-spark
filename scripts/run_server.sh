@@ -4,9 +4,9 @@ set -euo pipefail
 : "${MODEL_ROOT:?MODEL_ROOT is required}"
 : "${LLAMA_ROOT:?LLAMA_ROOT is required}"
 
-binary_rel="${BINARY_REL:-build-gb10-pr27742/bin/llama-server}"
+binary_rel="${BINARY_REL:-build-gb10-next/bin/llama-server}"
 binary="$LLAMA_ROOT/$binary_rel"
-model="$MODEL_ROOT/${MODEL_ENTRY:-UD-IQ1_S/Qwen3.8-Flash-Next-UD-IQ1_S-00001-of-00003.gguf}"
+model="$MODEL_ROOT/${MODEL_ENTRY:-IQ3_XXS/Qwen3.8-Flash-Next-GSQ-RCO-IQ3_XXS-00001-of-00002.gguf}"
 
 [[ "$(uname -m)" == "aarch64" ]] || { printf 'aarch64 required\n' >&2; exit 1; }
 command -v nvidia-smi >/dev/null
@@ -18,9 +18,9 @@ mem_available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
 (( mem_available_kib >= 6291456 )) || { printf 'less than 6 GiB MemAvailable\n' >&2; exit 1; }
 
 ctx_size="${CTX_SIZE:-262144}"
-parallel="${PARALLEL:-8}"
+parallel="${PARALLEL:-1}"
 batch_size="${BATCH_SIZE:-2048}"
-ubatch_size="${UBATCH_SIZE:-64}"
+ubatch_size="${UBATCH_SIZE:-512}"
 ngram_mod="${NGRAM_MOD:-0}"
 spec_mode="${SPEC_MODE:-}"
 mtp_draft_path="${MTP_DRAFT_PATH:-}"
@@ -40,7 +40,7 @@ fi
 
 args=(
   --model "$model"
-  --alias qwen38-flash-next-q3-k-xl
+  --alias "${MODEL_ALIAS:-qwen38-flash-next-gsq-iq3xxs}"
   -c "$ctx_size"
   -np "$parallel"
   --no-kv-unified

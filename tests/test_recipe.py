@@ -108,6 +108,18 @@ assert next_results["decision"]["deep_context_profile"] == "block-top-k-context-
 assert next_results["before_to_after"]["exact_output_matches"] == "6/6"
 assert next_results["safety"]["maximum_service_swap_bytes"] == 0
 
+gsq_revision = "c67535ccaa71f61547bb323a2828d5298221d83e"
+gsq_manifest = json.loads((ROOT / "manifests/gsq-iq3xxs.json").read_text())
+assert gsq_manifest["repo"] == "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF"
+assert gsq_manifest["revision"] == gsq_revision
+assert gsq_manifest["quantization"] == "GSQ-RCO IQ3_XXS"
+assert len(gsq_manifest["files"]) == 2
+assert sum(item["bytes"] for item in gsq_manifest["files"]) == gsq_manifest["total_bytes"] == 75839998528
+assert all(len(item["sha256"]) == 64 for item in gsq_manifest["files"])
+gsq_results = json.loads((ROOT / "results/gsq-iq3xxs.json").read_text())
+assert gsq_results["runtime"]["base_commit"] == NEXT_BASE_COMMIT
+assert gsq_results["arms"]["GSQ-RCO IQ3_XXS"]["four_task_passes"] == 4
+
 readme = (ROOT / "README.md").read_text()
 build = (ROOT / "scripts/build_llama.sh").read_text()
 build_mtp = (ROOT / "scripts/build_llama_mtp.sh").read_text()
@@ -120,11 +132,11 @@ all_public_text = "\n".join(
     if path.is_file() and ".git" not in path.parts and "__pycache__" not in path.parts
 )
 
-for required in (q3_revision, projector_revision, projector_sha256, NEXT_BASE_COMMIT, "SM121", "UD-Q3_K_XL"):
+for required in (gsq_revision, projector_revision, projector_sha256, NEXT_BASE_COMMIT, "SM121", "GSQ-RCO IQ3_XXS"):
     assert required in readme or required in build_mtp
 for required_flag in ("--no-kv-unified", "-ngl 99", "--no-context-shift", "--host", "127.0.0.1", "draft-mtp", "--mmproj", "--spec-draft-mtp-context-threshold"):
     assert required_flag in server
-for required_profile_value in ("q3-q3kxl-next", "ctx_size=262144", "parallel=1", "batch_size=2048", "ubatch_size=512", "spec_mode=mtp-46", "spec_p_min=0.75", "mtp_context_threshold=49152"):
+for required_profile_value in ("gsq-iq3xxs", "manifest_profile=gsq-iq3xxs", "ctx_size=262144", "parallel=1", "batch_size=2048", "ubatch_size=512", "spec_mode=mtp-46", "spec_p_min=0.75", "mtp_context_threshold=49152"):
     assert required_profile_value in installer
 assert "MMPROJ_PATH" in installer
 assert "MemorySwapMax=0" in service

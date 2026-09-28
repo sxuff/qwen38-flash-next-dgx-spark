@@ -52,10 +52,9 @@ class Q3NextPublicTests(unittest.TestCase):
         self.assertEqual(manifest["variant"], "shared-Q4_K_M")
         self.assertEqual(manifest["total_bytes"], 1907151936)
         self.assertEqual(manifest["files"][0]["sha256"], "f521868a9e143718bef513772f6e04d9642551e362cf2439636d2abdbd149dfc")
-        card = ROOT / "results/q3-q3kxl-next-card.png"
-        self.assertTrue(card.is_file())
-        self.assertEqual(hashlib.sha256(card.read_bytes()).hexdigest(), "d69596d4e34710338c08276d60c9685f2019c44020f8b1f4b1409eb85f818029")
+        self.assertFalse((ROOT / "results/q3-q3kxl-next-card.png").exists())
         self.assertFalse((ROOT / "results/q3-q3kxl-mtp4-card.png").exists())
+        # The historical machine-readable receipt retains the removed visual's metadata.
         self.assertEqual(self.result["result_card"]["width"], 1472)
         self.assertEqual(self.result["result_card"]["height"], 1312)
 
@@ -64,17 +63,10 @@ class Q3NextPublicTests(unittest.TestCase):
         build = (ROOT / "scripts/build_llama_mtp.sh").read_text()
         server = (ROOT / "scripts/run_server.sh").read_text()
         installer = (ROOT / "scripts/install_service.sh").read_text()
-        for value in (
-            "49.70 tok/s",
-            "63.55 tok/s",
-            "27.86% higher",
-            "deployment-to-deployment comparison",
-            "q3-q3kxl-next",
-            "not a complete 256K stress test",
-            "results/q3-q3kxl-next.json",
-            "results/q3-q3kxl-next-card.png",
-        ):
+        for value in ("GSQ-RCO IQ3_XXS", "71.11 tok/s", "15.3%", "gsq-iq3xxs", "results/gsq-iq3xxs.json", "results/gsq-iq3xxs-card.png"):
             self.assertIn(value, readme)
+        for retired in ("49.70 tok/s", "63.55 tok/s", "27.86% higher", "results/q3-q3kxl-next-card.png"):
+            self.assertNotIn(retired, readme)
         for value in (
             "797da982b488254b11f844718c30e0c41f34d718",
             BLOCK_SHA,
@@ -123,12 +115,17 @@ class Q3NextPublicTests(unittest.TestCase):
                 return manifest
 
             target_manifest = zero_manifest("q3-q3kxl.json")
+            gsq_manifest = zero_manifest("gsq-iq3xxs.json")
             draft_manifest = zero_manifest("q3-mtp-shared-q4.json")
             projector_manifest = zero_manifest("q3-mmproj-f16.json")
             target_root = temp / "target"
             draft_root = temp / "draft"
             llama_root = temp / "llama"
             for entry in target_manifest["files"]:
+                path = target_root / entry["path"]
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"")
+            for entry in gsq_manifest["files"]:
                 path = target_root / entry["path"]
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"")
@@ -153,6 +150,14 @@ class Q3NextPublicTests(unittest.TestCase):
             proc = subprocess.run(command[:-2] + [str(bad), str(projector)], env=env, text=True, capture_output=True)
             self.assertNotEqual(proc.returncode, 0)
             self.assertIn("not the manifest-verified artifact", proc.stderr)
+            gsq_command = ["bash", str(fixture / "scripts/install_service.sh"), str(target_root), str(llama_root), "gsq-iq3xxs", str(draft), str(projector)]
+            gsq = subprocess.run(gsq_command, env=env, text=True, capture_output=True)
+            self.assertEqual(gsq.returncode, 0, gsq.stderr)
+            self.assertIn("MODEL_ENTRY=IQ3_XXS/", gsq.stdout)
+            self.assertIn("MODEL_ALIAS=qwen38-flash-next-gsq-iq3xxs", gsq.stdout)
+            self.assertIn("SPEC_MODE=mtp-46", gsq.stdout)
+            self.assertIn("SPEC_P_MIN=0.75", gsq.stdout)
+            self.assertIn("MTP_CONTEXT_THRESHOLD=49152", gsq.stdout)
 
     def test_no_private_identifiers(self):
         paths = [ROOT / "README.md", RESULT, ROOT / "scripts/build_llama_mtp.sh", ROOT / "scripts/install_service.sh", ROOT / "scripts/run_server.sh"]

@@ -3,11 +3,11 @@ set -euo pipefail
 
 model_root="${1:-}"
 llama_root="${2:-}"
-profile="${3:-q1-iq1s}"
+profile="${3:-gsq-iq3xxs}"
 mtp_draft="${4:-}"
 projector_arg="${5:-}"
 [[ -n "$model_root" && -n "$llama_root" ]] || {
-  printf 'usage: %s MODEL_ROOT LLAMA_ROOT [q1-iq1s|q3-q3kxl|q3-q3kxl-mtp3|q3-q3kxl-mtp4|q3-q3kxl-next] [MTP_DRAFT] [MMPROJ]\n' "$0" >&2
+  printf 'usage: %s MODEL_ROOT LLAMA_ROOT [gsq-iq3xxs|q1-iq1s|q3-q3kxl|q3-q3kxl-mtp3|q3-q3kxl-mtp4|q3-q3kxl-next] [MTP_DRAFT] [MMPROJ]\n' "$0" >&2
   exit 2
 }
 model_root="$(realpath "$model_root")"
@@ -15,8 +15,23 @@ llama_root="$(realpath "$llama_root")"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 spec_p_min=""
 mtp_context_threshold=""
+model_alias="qwen38-flash-next-q3-k-xl"
 
 case "$profile" in
+  gsq-iq3xxs)
+    ctx_size=262144
+    parallel=1
+    batch_size=2048
+    ubatch_size=512
+    ngram_mod=0
+    spec_mode=mtp-46
+    spec_p_min=0.75
+    mtp_context_threshold=49152
+    binary_rel=build-gb10-next/bin/llama-server
+    fit_mode=off
+    manifest_profile=gsq-iq3xxs
+    model_alias=qwen38-flash-next-gsq-iq3xxs
+    ;;
   q1-iq1s)
     ctx_size=262144
     parallel=8
@@ -78,11 +93,11 @@ manifest="$repo_root/manifests/$manifest_profile.json"
 python3 "$repo_root/scripts/download_model.py" --manifest "$manifest" --destination "$model_root" --verify-only
 model_entry="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["files"][0]["path"])' "$manifest")"
 mtp_draft_path=""
-if [[ "$profile" == "q3-q3kxl-mtp3" || "$profile" == "q3-q3kxl-mtp4" || "$profile" == "q3-q3kxl-next" ]]; then
+if [[ "$profile" == "q3-q3kxl-mtp3" || "$profile" == "q3-q3kxl-mtp4" || "$profile" == "q3-q3kxl-next" || "$profile" == "gsq-iq3xxs" ]]; then
   [[ -n "$mtp_draft" ]] || { printf 'error: MTP_DRAFT is required for %s\n' "$profile" >&2; exit 2; }
   supplied_mtp_path="$(realpath "$mtp_draft")"
   mtp_root="$(dirname "$(dirname "$supplied_mtp_path")")"
-  if [[ "$profile" == "q3-q3kxl-next" ]]; then
+  if [[ "$profile" == "q3-q3kxl-next" || "$profile" == "gsq-iq3xxs" ]]; then
     mtp_manifest="$repo_root/manifests/q3-mtp-shared-q4.json"
   else
     mtp_manifest="$repo_root/manifests/q3-mtp-shared-q8.json"
@@ -100,7 +115,7 @@ if [[ "$profile" == "q3-q3kxl-mtp3" || "$profile" == "q3-q3kxl-mtp4" || "$profil
   mtp_draft_path="$verified_mtp_path"
 fi
 mmproj_path=""
-if [[ "$profile" == "q3-q3kxl" || "$profile" == "q3-q3kxl-mtp3" || "$profile" == "q3-q3kxl-mtp4" || "$profile" == "q3-q3kxl-next" ]]; then
+if [[ "$profile" == "q3-q3kxl" || "$profile" == "q3-q3kxl-mtp3" || "$profile" == "q3-q3kxl-mtp4" || "$profile" == "q3-q3kxl-next" || "$profile" == "gsq-iq3xxs" ]]; then
   projector="${projector_arg:-$model_root/mmproj-F16.gguf}"
   if [[ -n "$projector_arg" && ! -f "$projector" ]]; then
     printf 'error: supplied MMPROJ does not exist: %s\n' "$projector" >&2
@@ -122,7 +137,7 @@ if [[ "$profile" == "q3-q3kxl" || "$profile" == "q3-q3kxl-mtp3" || "$profile" ==
     }
     mmproj_path="$verified_projector_path"
   else
-    printf 'warning: %s is absent; Q3 will run text-only\n' "$projector" >&2
+    printf 'warning: %s is absent; the target will run text-only\n' "$projector" >&2
   fi
 fi
 [[ -x "$llama_root/$binary_rel" ]] || {
@@ -134,6 +149,7 @@ render_env() {
   printf 'MODEL_ROOT=%q\n' "$model_root"
   printf 'LLAMA_ROOT=%q\n' "$llama_root"
   printf 'MODEL_ENTRY=%q\n' "$model_entry"
+  printf 'MODEL_ALIAS=%q\n' "$model_alias"
   printf 'CTX_SIZE=%q\n' "$ctx_size"
   printf 'PARALLEL=%q\n' "$parallel"
   printf 'BATCH_SIZE=%q\n' "$batch_size"
