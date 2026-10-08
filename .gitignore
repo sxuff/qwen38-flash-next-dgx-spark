@@ -5,3 +5,4 @@ __pycache__/
 *.partial
 *.gguf
 artifacts/
+runtime-cache/

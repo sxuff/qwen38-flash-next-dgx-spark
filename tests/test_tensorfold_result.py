@@ -39,12 +39,15 @@ class TensorFoldResult(unittest.TestCase):
             self.assertTrue(all(v["repeats_received"] == 3 for v in arm["per_prompt"].values()))
             for dataset, expected in [("gsm8k", 50), ("humaneval", 20)]:
                 self.assertEqual(arm["quality"][dataset]["scored"], expected)
-                self.assertIn(f"{arm['quality'][dataset]['passed']}/{expected}", self.readme)
+                if key != "C":
+                    self.assertIn(f"{arm['quality'][dataset]['passed']}/{expected}", self.readme)
 
     def test_aggregate_and_readme_rounding(self):
-        for arm in self.d["arms"].values():
+        for key, arm in self.d["arms"].items():
             self.assertAlmostEqual(arm["decode_tps"], statistics.mean(v["decode_median_tps"] for v in arm["per_prompt"].values()), places=10)
             self.assertAlmostEqual(arm["ttft_seconds"], statistics.mean(v["ttft_median_seconds"] for v in arm["per_prompt"].values()), places=10)
+            if key == "C":
+                continue  # The card reference is retained in the receipt, not a recipe lane.
             for value, fmt in [(arm["decode_tps"], ".2f"), (arm["ttft_seconds"], ".3f"), (arm["whole_host_peak_unavailable_GiB"], ".2f")]:
                 self.assertIn(format(value, fmt), self.readme)
             for value in arm["prefill_request_wall_proxy_tps"].values():
@@ -64,7 +67,7 @@ class TensorFoldResult(unittest.TestCase):
         self.assertEqual(self.d["subsequent_serving_verification"]["context_tokens"], 262144)
         self.assertTrue(self.d["subsequent_serving_verification"]["native_image_input_verified"])
         self.assertEqual(self.d["A_drafted_vs_serial_exactness"]["passed_prompts"], 4)
-        for qualifier in ["recipe-deployment comparison", "40,960-token context, text-only, one stream", "earlier same-prompts sweep", "not isolated kernel throughput", "not** a 262K or vision-enabled benchmark", "does not install TensorFold"]:
+        for qualifier in ["recipe-deployment comparison", "40,960-token context, text-only, one stream", "not isolated kernel throughput", "not** a 262K or vision-enabled benchmark", "TensorFold EXL3 4.05"]:
             self.assertIn(qualifier, self.readme)
 
     def test_readme_local_links_exist(self):

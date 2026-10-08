@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "repo": "turboderp/Qwen3.8-Flash-Next-exl3",
+  "revision": "55a732e0c4c3d4614bc42b68493bb930d9b02c0a",
+  "branch": "4.05bpw_h6_ng6",
+  "total_bytes": 107463600896,
+  "reserve_bytes": 21474836480,
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 1696,
+      "algorithm": "git-blob-sha1",
+      "digest": "a43791f306e6c26bf48714334ef2492c188e3fa8"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 3235,
+      "algorithm": "git-blob-sha1",
+      "digest": "9557a8961782792814714b7488346732c043793d"
+    },
+    {
+      "path": "README.md",
+      "bytes": 65155,
+      "algorithm": "git-blob-sha1",
+      "digest": "a1fe177999aa2cb975cd5c17b787405e168bd176"
+    },
+    {
+      "path": "chat_template.jinja",
+      "bytes": 8952,
+      "algorithm": "git-blob-sha1",
+      "digest": "c0c686f9c38d70d179fb7b5f5aa7530bc913dda3"
+    },
+    {
+      "path": "config.json",
+      "bytes": 5055,
+      "algorithm": "git-blob-sha1",
+      "digest": "e63e10d6358f3ccc6165d8afa8893c63c5b20d28"
+    },
+    {
+      "path": "generation_config.json",
+      "bytes": 202,
+      "algorithm": "git-blob-sha1",
+      "digest": "023756cfadf88e5bf69eefeee3e172f38c448d64"
+    },
+    {
+      "path": "merges.txt",
+      "bytes": 3353259,
+      "algorithm": "git-blob-sha1",
+      "digest": "a494e019ca1502219fd0128658b979e5f05ae8e8"
+    },
+    {
+      "path": "model-00001-of-00009.safetensors",
+      "bytes": 8059362762,
+      "algorithm": "sha256",
+      "digest": "f7aada062016dd519e73778a55b5f2c27420d133cc1d9c32a16fdda84628db46",
+      "sha256": "f7aada062016dd519e73778a55b5f2c27420d133cc1d9c32a16fdda84628db46"
+    },
+    {
+      "path": "model-00002-of-00009.safetensors",
+      "bytes": 8067865392,
+      "algorithm": "sha256",
+      "digest": "9b59a1f2aa822da10605bac5b30993db5de16980438519021639ec7f00277a7c",
+      "sha256": "9b59a1f2aa822da10605bac5b30993db5de16980438519021639ec7f00277a7c"
+    },
+    {
+      "path": "model-00003-of-00009.safetensors",
+      "bytes": 8062251066,
+      "algorithm": "sha256",
+      "digest": "afd197293ebf95ae2f12eb9765845b6bb1458501de8d538d1004216e7f7276cd",
+      "sha256": "afd197293ebf95ae2f12eb9765845b6bb1458501de8d538d1004216e7f7276cd"
+    },
+    {
+      "path": "model-00004-of-00009.safetensors",
+      "bytes": 8067896318,
+      "algorithm": "sha256",
+      "digest": "2e307c9bbc15d5ea60d83eb305cc33b53781278f5d06d89f0e5c748b49fb0daf",
+      "sha256": "2e307c9bbc15d5ea60d83eb305cc33b53781278f5d06d89f0e5c748b49fb0daf"
+    },
+    {
+      "path": "model-00005-of-00009.safetensors",
+      "bytes": 8062251066,
+      "algorithm": "sha256",
+      "digest": "86117026391a449dfee9694a29c71550bfcfb522bbeedad2f5628d44fdd34562",
+      "sha256": "86117026391a449dfee9694a29c71550bfcfb522bbeedad2f5628d44fdd34562"
+    },
+    {
+      "path": "model-00006-of-00009.safetensors",
+      "bytes": 8067896318,
+      "algorithm": "sha256",
+      "digest": "f8f64d518e44707fab7522671799e740dc24ec8b637444104795a6ec8f3f774e",
+      "sha256": "f8f64d518e44707fab7522671799e740dc24ec8b637444104795a6ec8f3f774e"
+    },
+    {
+      "path": "model-00007-of-00009.safetensors",
+      "bytes": 8062251066,
+      "algorithm": "sha256",
+      "digest": "fe71c41078d23d8350bb397b52a2879c0532735ae75536fb34c74c3fc0e42312",
+      "sha256": "fe71c41078d23d8350bb397b52a2879c0532735ae75536fb34c74c3fc0e42312"
+    },
+    {
+      "path": "model-00008-of-00009.safetensors",
+      "bytes": 8067896318,
+      "algorithm": "sha256",
+      "digest": "e46d1886537d7e61f640548b35da990f289261fecc330b890723a09aab278382",
+      "sha256": "e46d1886537d7e61f640548b35da990f289261fecc330b890723a09aab278382"
+    },
+    {
+      "path": "model-00009-of-00009.safetensors",
+      "bytes": 3191543125,
+      "algorithm": "sha256",
+      "digest": "15b7fced049294ee13f084079603ebb3e7b7a3c36271a7cfc3cf3a902ed53ae5",
+      "sha256": "15b7fced049294ee13f084079603ebb3e7b7a3c36271a7cfc3cf3a902ed53ae5"
+    },
+    {
+      "path": "model.safetensors.index.json",
+      "bytes": 32677781,
+      "algorithm": "sha256",
+      "digest": "3375f7333b96069f476f191e929bc6dfbe8a3a3557e8844dec3d91dcded4657e",
+      "sha256": "3375f7333b96069f476f191e929bc6dfbe8a3a3557e8844dec3d91dcded4657e"
+    },
+    {
+      "path": "ngram_embedding.safetensors",
+      "bytes": 39040193720,
+      "algorithm": "sha256",
+      "digest": "c63613666649014e668cdbd32a4e3f1e8beda697eb4f3a1874300d93a1bfbc75",
+      "sha256": "c63613666649014e668cdbd32a4e3f1e8beda697eb4f3a1874300d93a1bfbc75"
+    },
+    {
+      "path": "preprocessor_config.json",
+      "bytes": 390,
+      "algorithm": "git-blob-sha1",
+      "digest": "2ea84a437d448ff71b08df68fdd949d5cc4ebb64"
+    },
+    {
+      "path": "qbench_prompts.json",
+      "bytes": 324183,
+      "algorithm": "git-blob-sha1",
+      "digest": "30997642e72294faf80e0979b8d4fa6131c89b00"
+    },
+    {
+      "path": "qbench_prompts.md",
+      "bytes": 212719,
+      "algorithm": "git-blob-sha1",
+      "digest": "5d70e60e02a8513bfcb08124b7fa7cd054df6f3b"
+    },
+    {
+      "path": "quantization_config.json",
+      "bytes": 96601545,
+      "algorithm": "sha256",
+      "digest": "e5f86a6fa1a1ebb1b0fb4e2fd1d14e2989f7ccf13ad1a572be0af05129f4e3d1",
+      "sha256": "e5f86a6fa1a1ebb1b0fb4e2fd1d14e2989f7ccf13ad1a572be0af05129f4e3d1"
+    },
+    {
+      "path": "tokenizer.json",
+      "bytes": 12809320,
+      "algorithm": "sha256",
+      "digest": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3",
+      "sha256": "0997f410c57a1f4e53b09e4be8f4a172d90edd9564368fb0847030937229b9f3"
+    },
+    {
+      "path": "tokenizer_config.json",
+      "bytes": 17928,
+      "algorithm": "git-blob-sha1",
+      "digest": "5de744b3fca2129d7186979ae47c06be33903243"
+    },
+    {
+      "path": "video_preprocessor_config.json",
+      "bytes": 385,
+      "algorithm": "git-blob-sha1",
+      "digest": "3ba673a5ad7d4d13f54155ecd38b2a94a6dac8fe"
+    },
+    {
+      "path": "vision_k6.safetensors",
+      "bytes": 561389181,
+      "algorithm": "sha256",
+      "digest": "04a66385d96ee7015dab2202615de786319d6219cd70b5208ef00f363b34b620",
+      "sha256": "04a66385d96ee7015dab2202615de786319d6219cd70b5208ef00f363b34b620"
+    },
+    {
+      "path": "vocab.json",
+      "bytes": 6722759,
+      "algorithm": "git-blob-sha1",
+      "digest": "0aa0ce0658d60ac4a5d609f4eadb0e8e43514176"
+    }
+  ]
+}

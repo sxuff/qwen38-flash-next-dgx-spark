@@ -8,6 +8,35 @@
     "height": 1740
   },
   "measurement_date": "2026-10-08",
+  "public_recipe": {
+    "runtime": "TensorFold 0.6.5",
+    "runtime_revision": "609ca419abecebdc5a059498a613680bd3aa847f",
+    "context_tokens": 262144,
+    "streams": 2,
+    "native_vision": true,
+    "mtp_depth": 6,
+    "confidence": 0.70,
+    "kv_dtype": "bf16",
+    "prefetch": false,
+    "graphs": true,
+    "output_default_tokens": 32768,
+    "image_build": {
+      "image_sha256": "858c44b02b431b186960af4b35e655b184eab50f15aed004a80f564400cf24dd",
+      "architecture": "arm64",
+      "torch": "2.13.0+cu130",
+      "triton": "3.7.1",
+      "cpu_imports_pass": true,
+      "cpu_image_preprocessing_pass": true,
+      "fresh_gpu_model_load_tested": false
+    },
+    "live_engine_smoke": {
+      "text_pass": true,
+      "native_image_pass": true,
+      "context_tokens": 262144,
+      "scope": "The new public smoke client exercised the existing running TensorFold engine. Production was not restarted into the newly built image."
+    },
+    "scope": "Current serving recipe. The performance panel below used a separate 40K/text-only configuration, not this 262K vision configuration."
+  },
   "hardware": "One NVIDIA GB10, 128 GB unified memory",
   "comparison_kind": "Recipe-deployment comparison; identical A/B language weights, different runtime/KV/draft configurations",
   "language_artifact": {

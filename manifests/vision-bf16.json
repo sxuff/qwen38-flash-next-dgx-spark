@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "repo": "doth4580/Qwen3.8-Flash-Next-EXL3-3.05bpw",
+  "revision": "b5a234522364b10cdc4869844597bf77eeb942a7",
+  "total_bytes": 897899504,
+  "reserve_bytes": 21474836480,
+  "files": [
+    {
+      "path": "vision_tower_bf16.safetensors",
+      "bytes": 897899504,
+      "algorithm": "sha256",
+      "digest": "cdd69998e52e34badced49ef8ec09824b8b9a52e488094f0cadeadc7ebfc641e",
+      "sha256": "cdd69998e52e34badced49ef8ec09824b8b9a52e488094f0cadeadc7ebfc641e"
+    }
+  ]
+}

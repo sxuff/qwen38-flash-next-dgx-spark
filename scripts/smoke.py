@@ -1,50 +1,61 @@
 #!/usr/bin/env python3
+"""Verify model identity, context, text and native image input with real requests."""
 import argparse
+import base64
 import json
-import urllib.error
+import os
+import struct
 import urllib.request
+import zlib
+
+MODEL = "qwen38-flash-next-tf405"
 
 
-def request_json(url: str, payload: dict | None = None, timeout: int = 60) -> tuple[int, dict]:
-    data = None if payload is None else json.dumps(payload).encode()
-    request = urllib.request.Request(url, data=data)
-    if data is not None:
-        request.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.status, json.load(response)
+def two_colors():
+    width, height = 256, 128
+    raw = b"".join(b"\0" + b"\xff\0\0"*(width//2) + b"\0\0\xff"*(width//2) for _ in range(height))
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind+data))
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8001")
-    args = parser.parse_args()
-    base = args.base_url.rstrip("/")
+def request_json(base, path, payload=None):
+    headers = {"Content-Type": "application/json"}
+    key = os.environ.get("QWEN_API_KEY")
+    if key:
+        headers["Authorization"] = "Bearer " + key
+    req = urllib.request.Request(base+path, data=None if payload is None else json.dumps(payload).encode(), headers=headers)
+    with urllib.request.urlopen(req, timeout=180) as response:
+        return json.load(response)
 
-    health_status, health = request_json(f"{base}/health", timeout=10)
-    if health_status != 200:
-        raise SystemExit(f"health failed: HTTP {health_status}")
 
-    payload = {
-        "messages": [{"role": "user", "content": "Reply with exactly: GB10 READY"}],
-        "temperature": 0.0,
-        "max_tokens": 32,
-        "stream": False,
-    }
-    status, result = request_json(f"{base}/v1/chat/completions", payload, timeout=300)
-    choices = result.get("choices") or []
-    content = choices[0].get("message", {}).get("content", "") if choices else ""
-    if status != 200 or not content.strip():
-        raise SystemExit("generation failed or returned empty content")
-    usage = result.get("usage", {})
-    print(json.dumps({
-        "health_http_status": health_status,
-        "health": health,
-        "generation_http_status": status,
-        "nonempty_output": True,
-        "finish_reason": choices[0].get("finish_reason"),
-        "usage": usage,
-        "output": content,
-    }, indent=2))
+def main(argv=None):
+    p = argparse.ArgumentParser()
+    p.add_argument("--base-url", default="http://127.0.0.1:8001")
+    a = p.parse_args(argv)
+    base = a.base_url.rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    health = request_json(base, "/health")
+    if health.get("context_length") != 262144:
+        raise SystemExit("Expected 262144-token serving context")
+    models = request_json(base, "/v1/models")
+    if MODEL not in [m["id"] for m in models.get("data", [])]:
+        raise SystemExit("Served model identity mismatch")
+    payload = {"model": MODEL, "messages": [{"role": "user", "content": "Reply with exactly TEXT_OK."}],
+               "max_tokens": 128, "temperature": 0, "reasoning_effort": "none", "stream": False}
+    text = request_json(base, "/v1/chat/completions", payload)
+    if text["choices"][0]["message"].get("content", "").strip() != "TEXT_OK" or text["choices"][0]["finish_reason"] != "stop":
+        raise SystemExit("Text generation check failed")
+    image = "data:image/png;base64," + base64.b64encode(two_colors()).decode()
+    payload["messages"] = [{"role": "user", "content": [
+        {"type": "text", "text": "Name the two dominant colors in this image, from left to right. Reply with just the color names."},
+        {"type": "image_url", "image_url": {"url": image}}]}]
+    result = request_json(base, "/v1/chat/completions", payload)
+    colors = result["choices"][0]["message"].get("content", "").lower()
+    if "red" not in colors or "blue" not in colors or colors.index("red") > colors.index("blue") or result["choices"][0]["finish_reason"] != "stop":
+        raise SystemExit("Native image generation check failed")
+    print(json.dumps({"model": MODEL, "context_tokens": health["context_length"], "text_pass": True, "native_vision_pass": True, "text_response": text["choices"][0]["message"]["content"], "vision_response": colors}, indent=2))
     return 0
 
 

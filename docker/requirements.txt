@@ -1,0 +1,10 @@
+setuptools==80.9.0
+wheel==0.45.1
+numpy==2.3.5
+huggingface-hub==1.28.0
+tokenizers==0.23.1
+safetensors==0.8.0
+jinja2==3.1.6
+Pillow==12.3.0
+transformers==5.16.0
+triton==3.7.1
