@@ -1,8 +1,8 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A pinned, checksum-verified llama.cpp recipe for the `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF` IQ3_XXS target on one NVIDIA GB10 system.
+A pinned, checksum-verified llama.cpp recipe for the `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF` IQ3_XXS target on one NVIDIA GB10 system, plus a matched TensorFold versus native ExLlamaV3 comparison on identical EXL3 4.05 language weights.
 
-## Recommended architecture
+## Existing llama.cpp recipe architecture
 
 ```text
 Target:        GSQ-RCO IQ3_XXS
@@ -19,9 +19,40 @@ Vision:        F16 projector
 
 This repository contains the build patches, artifact manifests, service scripts, and public-safe measured results. It does not contain model weights.
 
-## Latest measured result
+## Latest measured result: TensorFold vs native ExLlamaV3
 
-![Measured GSQ-RCO IQ3_XXS versus UD-Q3_K_XL on one GX10: 65K decode 61.66 to 71.11 tok/s, with quality and real-text prefill trade-offs](results/gsq-iq3xxs-card.png)
+![Qwen3.8 Flash-Next on one GB10: TensorFold 75.68 versus native ExLlamaV3 67.54 tok/s, +12.0% short-prompt decode, with native ahead on approximately 32K prefill](results/tensorfold-exl3-405-card.png)
+
+**TensorFold wins short-prompt decode and TTFT. Native ExLlamaV3 wins the approximately 32K prefill proxies.** All 70 selected A/B quality items have identical pass/fail outcomes.
+
+| Metric | TensorFold EXL3 4.05 | Native ExLlamaV3 EXL3 4.05 | Earlier GSQ-RCO IQ3_XXS |
+|---|---:|---:|---:|
+| Short-prompt decode | 75.68 tok/s | 67.54 tok/s | 45.69 tok/s |
+| TTFT | 0.209 s | 0.532 s | 0.280 s |
+| 8K code prefill proxy | 700.13 tok/s | 600.94 tok/s | 639.69 tok/s |
+| ~32K code prefill proxy | 485.56 tok/s | 667.69 tok/s | 532.59 tok/s |
+| ~32K prose prefill proxy | 448.49 tok/s | 667.14 tok/s | 458.70 tok/s |
+| GSM8K subset | 49/50 | 49/50 | 49/50 |
+| HumanEval subset | 14/20 | 14/20 | 9/20 |
+| Peak whole-host unavailable memory | 77.37 GiB | 80.29 GiB | 68.36 GiB |
+
+A and B used the same `turboderp/Qwen3.8-Flash-Next-exl3` language artifact, branch `4.05bpw_h6_ng6`, revision `55a732e0c4c3d4614bc42b68493bb930d9b02c0a`. This is a **recipe-deployment comparison**, not an isolated runtime toggle:
+
+- TensorFold 0.6.5, commit `609ca419abecebdc5a059498a613680bd3aa847f`: MTP6, confidence 0.70, BF16 KV, lookup off, demand-paged n-gram table. No language-loader patch.
+- Native ExLlamaV3 1.5.1 fork, commit `94ba01d50a13fa9ff672473f2d0eef8b51a71e99`: dynamic MTP5, confidence 0.60, 8-bit KV, disk-backed n-gram table. Direct ExLlama API collection, not Tabby API throughput.
+- Both measured configurations: **40,960-token context, text-only, one stream**. The GSQ column is an **earlier same-prompts sweep**, with different weights and HTTP collection, not a contemporaneous third arm.
+
+Speed uses four fixed prompts, three repeats per prompt, and 400 generated tokens per request. The aggregate is the equal-weight mean of the four per-prompt medians. Decode is a post-first-emission proxy; TTFT includes prefill and the first sample. Prefill is a single-token request-wall proxy including EOS and overhead, not isolated kernel throughput. The ~32K fixtures contain 32,020 code and 32,196 prose tokens; A/B emitted EOS first in those requests. Whole-host unavailable memory is `MemTotal - min(MemAvailable)` across loading and collection, not GPU allocated memory.
+
+The quality panel contains 50 GSM8K and 20 HumanEval selected items, not full benchmark scores. TensorFold's drafted-versus-serial exactness check matched **400/400 token IDs on each of four prompts** within the same TensorFold load; this is not A/B output equivalence. All **259/259 rows** are accounted for: A89, B85, earlier C85.
+
+The subsequent serving configuration has **262,144-token context, two streams and native BF16 vision**. Image and text functional checks passed separately. The displayed throughput is **not** a 262K or vision-enabled benchmark, and no full-window stress result is claimed.
+
+Machine-readable values, runtime pins, card checksum and evidence qualifiers: [`results/tensorfold-exl3-405.json`](results/tensorfold-exl3-405.json). The launcher below remains the existing llama.cpp recipe; it does not install TensorFold.
+
+### Earlier GSQ-RCO target-quant comparison
+
+The following results compare two GGUF targets in the same llama.cpp deployment. Their synthetic 32K/65K workloads are different from the four-prompt TensorFold panel above. In particular, 71.11 tok/s on the synthetic 65K fixture and 45.69 tok/s in the earlier same-prompts column are not a before/after regression comparison.
 
 The measured swap changed **only the target GGUF**: Unsloth UD-Q3_K_XL to ISTA-DASLab GSQ-RCO IQ3_XXS. Both arms used the same pinned, patched llama.cpp binary, shared Q4_K_M MTP sidecar, context gate, flags, and requests.
 
@@ -40,7 +71,7 @@ This is **one local pass per row**, not a repeated-run performance claim. The 32
 
 Full machine-readable values, artifact hashes, and qualifiers: [`results/gsq-iq3xxs.json`](results/gsq-iq3xxs.json). Historical results remain in `results/` for comparison, not as current recommendations.
 
-## Verified stack
+## Verified llama.cpp stack
 
 - Hardware: one NVIDIA GB10 system with 128 GB unified memory
 - Target: `ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF`
@@ -170,13 +201,13 @@ python3 scripts/smoke.py --base-url http://127.0.0.1:8001
 
 A running process is not a ready model. Require model identity, real generation, advertised multimodal capability when the projector is installed, and zero service swap.
 
-## Context and vision validation
+## llama.cpp context and vision validation
 
 The configured context is 262,144 tokens, but the controlled throughput comparison stopped at 65K and is **not** a full 256K stress test. Both quants passed the same vision check with the unchanged F16 projector and a fixed red image, plus tool-call, JSON, smoke, and bounded long-generation checks. These are local functional checks, not general quality certification.
 
 Long client conversations can prefill many thousands of history tokens before the first streamed response; a client-side first-chunk watchdog can fire even while the server is actively processing. Check the actual `/slots` and `/metrics` endpoints before treating a delayed first chunk as a downed service.
 
-## Evidence boundaries
+## Earlier llama.cpp comparison evidence boundaries
 
 - One measured sweep per condition. No variance estimate.
 - The 32K and 65K rows use deterministic synthetic long prompts and forced 256-token outputs.

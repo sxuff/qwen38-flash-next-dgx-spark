@@ -1,0 +1,337 @@
+{
+  "schema_version": 1,
+  "result_card": {
+    "path": "results/tensorfold-exl3-405-card.png",
+    "sha256": "db5527fa4be9da813063cd9b5348c2852b7210fb767e95847da38c04f0813943",
+    "bytes": 769272,
+    "width": 2400,
+    "height": 1740
+  },
+  "measurement_date": "2026-10-08",
+  "hardware": "One NVIDIA GB10, 128 GB unified memory",
+  "comparison_kind": "Recipe-deployment comparison; identical A/B language weights, different runtime/KV/draft configurations",
+  "language_artifact": {
+    "repo": "turboderp/Qwen3.8-Flash-Next-exl3",
+    "branch": "4.05bpw_h6_ng6",
+    "revision": "55a732e0c4c3d4614bc42b68493bb930d9b02c0a"
+  },
+  "runtime_revisions": {
+    "TensorFold": "609ca419abecebdc5a059498a613680bd3aa847f",
+    "weights": "55a732e0c4c3d4614bc42b68493bb930d9b02c0a",
+    "native": "94ba01d50a13fa9ff672473f2d0eef8b51a71e99",
+    "tabby_source_recorded_not_served": "2fd6cc76203a66e13042daf7d76e5898b21c1ad8",
+    "base_image": "sha256:1f626b72bd7b20a470dae03ae18039049d50a0d496de20bf818b3b612c8699ee",
+    "GSQ_source": "797da982b488254b11f844718c30e0c41f34d718"
+  },
+  "benchmark_context_A_B": 40960,
+  "vision_in_benchmark": false,
+  "speed_protocol": {
+    "prompts": 4,
+    "repetitions_per_prompt": 3,
+    "max_new_tokens": 400,
+    "all_primary_speed_outputs_400_tokens": true,
+    "aggregate": "Equal-weight mean of four per-prompt medians",
+    "decode_clock": "Post-first-emission proxy; runtime callbacks for A/B, client streaming for C",
+    "ttft_clock": "Request start to first emission, includes prefill and first sample",
+    "prefill_clock": "Single-token request-wall proxy including EOS and overhead, not isolated kernel throughput"
+  },
+  "arms": {
+    "A": {
+      "label": "TensorFold EXL3 4.05",
+      "decode_tps": 75.67517652772605,
+      "ttft_seconds": 0.20895472125,
+      "per_prompt": {
+        "speed/code": {
+          "decode_median_tps": 85.68570685279674,
+          "ttft_median_seconds": 0.188890969,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/math": {
+          "decode_median_tps": 79.53266473844579,
+          "ttft_median_seconds": 0.229027865,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/prose": {
+          "decode_median_tps": 56.797072951144415,
+          "ttft_median_seconds": 0.195690687,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/structured": {
+          "decode_median_tps": 80.68526156851726,
+          "ttft_median_seconds": 0.222209364,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        }
+      },
+      "prefill_request_wall_proxy_tps": {
+        "prefill/32000-code": 485.5606671165737,
+        "prefill/32000-prose": 448.48613909317305,
+        "prefill/8192-code": 700.1257678170414
+      },
+      "quality": {
+        "gsm8k": {
+          "passed": 49,
+          "scored": 50,
+          "expected": 50,
+          "accuracy": 0.98
+        },
+        "humaneval": {
+          "passed": 14,
+          "scored": 20,
+          "expected": 20,
+          "accuracy": 0.7
+        }
+      },
+      "whole_host_peak_unavailable_GiB": 77.37078857421875,
+      "draft_acceptance": {
+        "draft_tokens": 4539,
+        "accepted_tokens": 3441,
+        "ratio": 0.7580964970257766,
+        "scope": "12 primary speed responses; actual runtime counters",
+        "reason": null
+      },
+      "rows": 89,
+      "eligible": true
+    },
+    "B": {
+      "label": "Native ExLlamaV3 EXL3 4.05",
+      "decode_tps": 67.54346167922755,
+      "ttft_seconds": 0.53221825425,
+      "per_prompt": {
+        "speed/code": {
+          "decode_median_tps": 74.06306964802565,
+          "ttft_median_seconds": 0.489627122,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/math": {
+          "decode_median_tps": 74.0951468906649,
+          "ttft_median_seconds": 0.598644095,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/prose": {
+          "decode_median_tps": 50.452038301368674,
+          "ttft_median_seconds": 0.496979248,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/structured": {
+          "decode_median_tps": 71.56359187685098,
+          "ttft_median_seconds": 0.543622552,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "runtime_emission_post_first_chunk_proxy",
+          "reason": null
+        }
+      },
+      "prefill_request_wall_proxy_tps": {
+        "prefill/32000-code": 667.6917956503673,
+        "prefill/32000-prose": 667.13992060539,
+        "prefill/8192-code": 600.936801303845
+      },
+      "quality": {
+        "gsm8k": {
+          "passed": 49,
+          "scored": 50,
+          "expected": 50,
+          "accuracy": 0.98
+        },
+        "humaneval": {
+          "passed": 14,
+          "scored": 20,
+          "expected": 20,
+          "accuracy": 0.7
+        }
+      },
+      "whole_host_peak_unavailable_GiB": 80.29287719726562,
+      "draft_acceptance": {
+        "draft_tokens": 4538,
+        "accepted_tokens": 3405,
+        "ratio": 0.750330542089026,
+        "scope": "12 primary speed responses; actual runtime counters",
+        "reason": null
+      },
+      "rows": 85,
+      "eligible": true
+    },
+    "C": {
+      "label": "Earlier GSQ-RCO IQ3_XXS deployment",
+      "decode_tps": 45.692690775990606,
+      "ttft_seconds": 0.27979074625,
+      "per_prompt": {
+        "speed/code": {
+          "decode_median_tps": 48.651730967645136,
+          "ttft_median_seconds": 0.255818654,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "client_streaming_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/math": {
+          "decode_median_tps": 50.68038682881094,
+          "ttft_median_seconds": 0.31304785,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "client_streaming_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/prose": {
+          "decode_median_tps": 34.615300102199484,
+          "ttft_median_seconds": 0.267209946,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "client_streaming_post_first_chunk_proxy",
+          "reason": null
+        },
+        "speed/structured": {
+          "decode_median_tps": 48.82334520530687,
+          "ttft_median_seconds": 0.283086535,
+          "repeats_received": 3,
+          "decode_field": "decode_tps",
+          "decode_metric_kind": "client_streaming_post_first_chunk_proxy",
+          "reason": null
+        }
+      },
+      "prefill_request_wall_proxy_tps": {
+        "prefill/32000-code": 532.585379793599,
+        "prefill/32000-prose": 458.70045968722127,
+        "prefill/8192-code": 639.6869660846627
+      },
+      "quality": {
+        "gsm8k": {
+          "passed": 49,
+          "scored": 50,
+          "expected": 50,
+          "accuracy": 0.98
+        },
+        "humaneval": {
+          "passed": 9,
+          "scored": 20,
+          "expected": 20,
+          "accuracy": 0.45
+        }
+      },
+      "whole_host_peak_unavailable_GiB": 68.36464309692383,
+      "draft_acceptance": {
+        "draft_tokens": 3518.0,
+        "accepted_tokens": 3160.0,
+        "ratio": 0.8982376350198976,
+        "scope": "12 primary speed responses; actual runtime counters",
+        "reason": null
+      },
+      "rows": 85,
+      "eligible": true
+    }
+  },
+  "verified_rows": {
+    "A": {
+      "actual_rows": 89,
+      "expected_rows": 89,
+      "primary_expected": 85,
+      "serial_expected": 4
+    },
+    "B": {
+      "actual_rows": 85,
+      "expected_rows": 85,
+      "primary_expected": 85,
+      "serial_expected": 0
+    },
+    "C": {
+      "actual_rows": 85,
+      "expected_rows": 85,
+      "primary_expected": 85,
+      "serial_expected": 0
+    }
+  },
+  "source_hashes": {
+    "private_summary_sha256": "54d3af4500d12a93e2cd8534e935c5ebf078874666500e3bee62444a4b0b21a9",
+    "private_prefill_diagnostic_sha256": "a163840fca3e8e51a9938ee2dcc39776ddd8764f8515e59a747308e1e64dfc98",
+    "private_preregistration_sha256": "35a073488a92fc38e497bd0ea685294e71a79c522ed2f16893ea1d685568d12b",
+    "private_raw_rows_sha256": {
+      "A": "e6a71cc5501dd2892523c7fd34f94ef3fa274bc076c293e23e463c98b29a254d",
+      "B": "cdf2be494bd25b18b7b896130b196ea3c41e148dd412f16dfe4467bb0b422074",
+      "C": "00e2b5d5335b0d72db35124297ec4f5b84e5793f8aa65f6668748baef649b039"
+    }
+  },
+  "A_B_same_block": true,
+  "C_reused_earlier_same_prompt_sweep": true,
+  "derived": {
+    "decode_gain_A_over_B_percent": 12.039233178656206,
+    "decode_ratio_A_over_B": 1.120392331786562,
+    "decode_gain_A_over_C_percent": 65.61768467242435,
+    "A_B_quality_outcomes_equal": true
+  },
+  "A_drafted_vs_serial_exactness": {
+    "prompts": 4,
+    "passed_prompts": 4,
+    "token_ids_per_prompt": 400,
+    "scope": "Same TensorFold load, drafted versus serial. Not A/B output equivalence and not universal exactness."
+  },
+  "benchmark_configs": {
+    "A": {
+      "runtime": "TensorFold 0.6.5",
+      "mtp_depth": 6,
+      "confidence": 0.7,
+      "kv_dtype": "bf16",
+      "streams": 1,
+      "prefetch": false,
+      "lookup": false
+    },
+    "B": {
+      "runtime": "vcruz305 ExLlamaV3 1.5.1 fork",
+      "mtp_max_depth": 5,
+      "confidence": 0.6,
+      "kv_bits": 8,
+      "streams": 1,
+      "ngram": "disk-backed"
+    },
+    "C": {
+      "runtime": "Patched llama.cpp GSQ-RCO IQ3_XXS",
+      "scope": "As-configured earlier deployment, native HTTP completion"
+    }
+  },
+  "subsequent_serving_verification": {
+    "context_tokens": 262144,
+    "streams": 2,
+    "native_image_input_verified": true,
+    "text_verified": true,
+    "vision_tower_dtype": "BF16",
+    "vision_tower_manifest": {
+      "repo": "doth4580/Qwen3.8-Flash-Next-EXL3-3.05bpw",
+      "revision": "b5a234522364b10cdc4869844597bf77eeb942a7",
+      "file": "vision_tower_bf16.safetensors",
+      "size": 897899504,
+      "sha256": "cdd69998e52e34badced49ef8ec09824b8b9a52e488094f0cadeadc7ebfc641e",
+      "language_weights_unchanged": true,
+      "time": 1791460451.9837928
+    },
+    "scope": "Separate functional serving smoke; no 262K throughput or long-context quality claim. The displayed benchmark numbers are for 40K/text-only configuration."
+  },
+  "limitations": [
+    "Different recipe settings mean this is not an isolated runtime/kernel toggle.",
+    "C is an earlier same-prompts reference, not a contemporaneous third arm and not identical weights.",
+    "8K and ~32K prefill values are request-wall proxies; A/B ~32K requests returned EOS as first token.",
+    "50 GSM8K and 20 HumanEval items are selected subsets, not full benchmark scores.",
+    "Existing repository synthetic 32K/65K headline rates use other prompts and are not comparable to this panel.",
+    "No first-ever TensorFold 4.05 claim.",
+    "No performance claim for the later 262K native-vision deployment."
+  ]
+}

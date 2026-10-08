@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Public contract for the current GSQ-RCO result card and recipe."""
+"""Public contract for the retained GSQ-RCO receipt and llama.cpp recipe."""
 import hashlib
 import json
 from pathlib import Path
@@ -16,14 +16,15 @@ class GSQPublicTests(unittest.TestCase):
         cls.manifest = json.loads((ROOT / "manifests/gsq-iq3xxs.json").read_text())
         cls.readme = (ROOT / "README.md").read_text()
 
-    def test_card_matches_receipt_and_old_card_is_absent(self):
+    def test_replaced_card_is_absent_and_receipt_is_retained(self):
         card = self.result["result_card"]
-        data = (ROOT / card["path"]).read_bytes()
-        self.assertEqual(len(data), card["bytes"])
-        self.assertEqual(hashlib.sha256(data).hexdigest(), card["sha256"])
-        self.assertEqual(data[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(struct.unpack(">II", data[16:24]), (card["width"], card["height"]))
-        self.assertIn(f"]({card['path']})", self.readme)
+        # Retain historical image metadata without publishing the replaced asset.
+        self.assertEqual(card["width"], 1600)
+        self.assertEqual(card["height"], 1150)
+        self.assertFalse((ROOT / card["path"]).exists())
+        self.assertNotIn(f"]({card['path']})", self.readme)
+        self.assertIn("Earlier GSQ-RCO target-quant comparison", self.readme)
+        self.assertIn("results/tensorfold-exl3-405-card.png", self.readme)
         self.assertFalse((ROOT / "results/q3-q3kxl-next-card.png").exists())
         self.assertNotIn("q3-q3kxl-next-card.png", self.readme)
 

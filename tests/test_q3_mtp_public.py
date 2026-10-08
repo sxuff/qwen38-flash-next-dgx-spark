@@ -63,9 +63,9 @@ class Q3NextPublicTests(unittest.TestCase):
         build = (ROOT / "scripts/build_llama_mtp.sh").read_text()
         server = (ROOT / "scripts/run_server.sh").read_text()
         installer = (ROOT / "scripts/install_service.sh").read_text()
-        for value in ("GSQ-RCO IQ3_XXS", "71.11 tok/s", "15.3%", "gsq-iq3xxs", "results/gsq-iq3xxs.json", "results/gsq-iq3xxs-card.png"):
+        for value in ("GSQ-RCO IQ3_XXS", "71.11 tok/s", "15.3%", "gsq-iq3xxs", "results/gsq-iq3xxs.json", "results/tensorfold-exl3-405-card.png"):
             self.assertIn(value, readme)
-        for retired in ("49.70 tok/s", "63.55 tok/s", "27.86% higher", "results/q3-q3kxl-next-card.png"):
+        for retired in ("49.70 tok/s", "63.55 tok/s", "27.86% higher", "results/q3-q3kxl-next-card.png", "results/gsq-iq3xxs-card.png"):
             self.assertNotIn(retired, readme)
         for value in (
             "797da982b488254b11f844718c30e0c41f34d718",
