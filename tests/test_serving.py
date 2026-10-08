@@ -1,4 +1,5 @@
 """CPU contracts for the public TensorFold launcher and independent safety guards."""
+import ast
 import contextlib
 import importlib.util
 import io
@@ -7,6 +8,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,8 +30,46 @@ class ServingRecipe(unittest.TestCase):
             self.assertEqual(module.main(["--model", "/model", "--vision-weights", "/vision/tower", "--print-config"]), 0)
         config = json.loads(out.getvalue())
         self.assertEqual(config["output_default_tokens"], 32768)
-        self.assertFalse(config["thinking_default"])
+        self.assertTrue(config["thinking_default"])
         self.assertEqual(config["model_id"], "qwen38-flash-next-tf405")
+        receipt = json.loads((ROOT/"results/tensorfold-exl3-405.json").read_text())
+        self.assertIs(receipt["public_recipe"]["thinking_default"], True)
+        self.assertIn("Thinking default: on", (ROOT/"README.md").read_text())
+
+    def test_actual_app_constructor_enables_thinking(self):
+        tree = ast.parse((ROOT/"scripts/serve.py").read_text())
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Name) and n.func.id == "App"]
+        self.assertEqual(len(calls), 1)
+        kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in calls[0].keywords}
+        self.assertIs(kwargs["default_thinking"], True)
+        self.assertEqual(kwargs["max_tokens"], 32768)
+
+    def test_smoke_checks_thinking_without_override(self):
+        module = load("smoke")
+        payloads = []
+        def request(base, path, payload=None):
+            if path == "/health": return {"context_length": 262144}
+            if path == "/v1/models": return {"data": [{"id": module.MODEL}]}
+            assert payload is not None
+            payloads.append(dict(payload))
+            if len(payloads) == 1:
+                return {"choices": [{"message": {"reasoning_content": "fixture", "content": "x = 4"}, "finish_reason": "stop"}]}
+            return {"choices": [{"message": {"content": "TEXT_OK" if len(payloads) == 2 else "red, blue"}, "finish_reason": "stop"}]}
+        with patch.object(module, "request_json", side_effect=request), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(module.main([]), 0)
+        self.assertNotIn("reasoning_effort", payloads[0])
+        self.assertNotIn("chat_template_kwargs", payloads[0])
+        self.assertEqual(payloads[0]["max_tokens"], 2048)
+        self.assertTrue(json.loads(out.getvalue())["thinking_default_pass"])
+
+    def test_smoke_rejects_missing_reasoning(self):
+        module = load("smoke")
+        replies = [{"context_length": 262144}, {"data": [{"id": module.MODEL}]},
+                   {"choices": [{"message": {"content": "x = 4"}, "finish_reason": "stop"}]}]
+        with patch.object(module, "request_json", side_effect=replies):
+            with self.assertRaisesRegex(SystemExit, "Thinking-default"):
+                module.main([])
 
     def test_reserve_swap_disk_boundaries(self):
         guard = load("supervise")

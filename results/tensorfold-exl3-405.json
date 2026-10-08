@@ -20,8 +20,9 @@
     "prefetch": false,
     "graphs": true,
     "output_default_tokens": 32768,
+    "thinking_default": true,
     "image_build": {
-      "image_sha256": "858c44b02b431b186960af4b35e655b184eab50f15aed004a80f564400cf24dd",
+      "image_sha256": "169749ac52208beafe013a277a4fc01bced39c74780a685640a3a908bb1763b5",
       "architecture": "arm64",
       "torch": "2.13.0+cu130",
       "triton": "3.7.1",
@@ -30,6 +31,9 @@
       "fresh_gpu_model_load_tested": false
     },
     "live_engine_smoke": {
+      "thinking_default_pass": true,
+      "thinking_characters": 124,
+      "explicit_thinking_override": false,
       "text_pass": true,
       "native_image_pass": true,
       "context_tokens": 262144,

@@ -32,7 +32,7 @@ def parse_args(argv=None):
 def main(argv=None):
     a = parse_args(argv)
     config = dict(model_id=MODEL_ID, runtime_revision=RUNTIME_SHA, engine=engine_options(),
-                  host=a.host, port=a.port, output_default_tokens=32768, thinking_default=False)
+                  host=a.host, port=a.port, output_default_tokens=32768, thinking_default=True)
     if a.print_config:
         print(json.dumps(config, indent=2))
         return 0
@@ -49,7 +49,7 @@ def main(argv=None):
     engine = FlashNextEngine(a.model, **engine_options())
     server = None
     try:
-        app = App(engine, a.model, MODEL_ID, default_thinking=False, max_tokens=32768,
+        app = App(engine, a.model, MODEL_ID, default_thinking=True, max_tokens=32768,
                   context_window=262144, sampling={"temperature": 0, "top_k": 0, "top_p": 1, "min_p": 0})
         server = Server((a.host, a.port), make_handler(app))
         def stop(_signum, _frame):

@@ -1,6 +1,6 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **262,144-token context, native vision and MTP6**.
+A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **thinking enabled, 262,144-token context, native vision and MTP6**.
 
 ![Qwen3.8 Flash-Next on one GB10: TensorFold 75.68 versus native ExLlamaV3 67.54 tok/s, +12.0% short-prompt decode, with native ahead on approximately 32K prefill](results/tensorfold-exl3-405-card.png)
 
@@ -22,7 +22,7 @@ Vision:           verified BF16 tower
 API:              OpenAI-compatible, localhost:8001
 Model ID:         qwen38-flash-next-tf405
 Output default:   32,768 tokens, request-overridable
-Thinking default: off
+Thinking default: on, request-overridable
 ```
 
 The language checkpoint includes its MTP head. No separate language drafter or language-loader patch is needed. The vision tower is a separate verified download; language weights remain unchanged.
@@ -95,13 +95,13 @@ The installer verifies both artifact manifests. It refuses to overwrite an exist
 
 The endpoint is bound to **127.0.0.1:8001**. This recipe does not install an external proxy or publish an unauthenticated API to the network.
 
-## 5. Verify text and native vision
+## 5. Verify thinking, text and native vision
 
 ```bash
 python3 scripts/smoke.py --base-url http://127.0.0.1:8001
 ```
 
-The smoke checks model identity, the advertised 262,144-token context, a real text response and a generated two-color image. The image prompt does not name the colors. Passing this check establishes functional text and native image input, not full-window quality.
+The smoke checks model identity, the advertised 262,144-token context, a completed response with nonempty `reasoning_content` and no thinking override, a real text response and a generated two-color image. The latter two checks explicitly disable thinking to isolate text and vision behavior. The image prompt does not name the colors. Passing this check establishes functional thinking, text and native image input, not full-window quality.
 
 Example request:
 
@@ -112,6 +112,10 @@ curl http://127.0.0.1:8001/v1/chat/completions \
 ```
 
 The output default is 32,768 tokens when a request omits its own cap. `max_tokens` or `max_completion_tokens` can override it; input plus generated tokens must fit the configured context. A client must also send images as native image content, not just a local file path.
+
+**Thinking is enabled by default.** Chat responses return it in `reasoning_content`, separately from the answer in `content`; streamed responses use the corresponding delta fields. Reasoning and the answer share the output token budget. A client must support that field to display thinking traces. To disable thinking for an individual request, send `"chat_template_kwargs":{"enable_thinking":false}`. Requests that omit the switch retain thinking.
+
+After pulling this update, rebuild with `bash scripts/build_tensorfold.sh` and restart an existing deployment so the container uses the updated launcher.
 
 ## Measured comparison
 
