@@ -1,0 +1,3 @@
+# Unified diffs contain required single-space blank context lines.
+# Preserve them; runtime source whitespace is checked during git apply.
+patches/*.patch -whitespace

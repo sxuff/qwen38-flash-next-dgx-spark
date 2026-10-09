@@ -1,0 +1,409 @@
+diff --git a/src/tensorfold/families/qwen4_exp/cuda/multi.py b/src/tensorfold/families/qwen4_exp/cuda/multi.py
+index e4326b4..c059914 100644
+--- a/src/tensorfold/families/qwen4_exp/cuda/multi.py
++++ b/src/tensorfold/families/qwen4_exp/cuda/multi.py
+@@ -19,7 +19,7 @@ from tensorfold.engine.grammar import GrammarError
+ 
+ from .decode import (PREFILL_ROWS, WARM_TAIL, Engine, _gathered_fits, choose_gathered_streams,
+                      entry_end, prefill_begin, tp_sample_rows)
+-from . import attn_multi, gdn_multi, image_rows, prefixes
++from . import attn_multi, gdn_multi, image_rows, prefixes, vision_prefix
+ from .forward import commit, compute, compute_mixed, converges, stage
+ from .mtp import mtp_compute, mtp_stage
+ from .state import Buffers, State
+@@ -206,14 +206,16 @@ class MultiDecoder(TwoRanks, Alone, PromptPasses):
+         self.memory_gate.waits += any(s.waiting for s in live)
+         return ended
+ 
+-    def _slot_for(self, prompt: list[int], reuse: bool):
++    def _slot_for(self, prompt: list[int], reuse: bool, cache_key=None):
+         """Reuse kept prefixes, preferring the graph slot among otherwise free destinations."""
+ 
+         if self.solo is not None and any(st is self.solo.st for st in self.free):
+             self.free = [st for st in self.free if st is not self.solo.st] + [self.solo.st]
+-        return prefixes.slot_for(self, prompt, reuse)
++        return prefixes.slot_for(self, prompt, reuse, cache_key=cache_key)
+ 
+     def _remember(self, ids: list[int], st: State, snap: dict, tail) -> None:
++        if getattr(st, "vision_cache_key", None) is not None:
++            snap = {**snap, **vision_prefix.snapshot_metadata(st)}
+         prefixes.remember(self, ids, st, snap, tail)
+ 
+     def live(self) -> int:
+@@ -253,10 +255,13 @@ class MultiDecoder(TwoRanks, Alone, PromptPasses):
+         if self.w.comm is not None and any(x is not None for x in (s.constraint, s.vision, s.probabilities)):
+             raise ValueError("concurrent Flash Next on two ranks serves text without grammars or logprobs")
+         t0 = time.perf_counter()
++        media_key = None
+         if self.w.comm is not None:
+             st, resume, s.cached = self._prepare_admission(s, told)
+         else:
+-            st, resume, s.cached = self._slot_for(list(s.prompt), s.draft and s.vision is None)
++            media_key = vision_prefix.cache_key(s.vision, s.prompt)
++            st, resume, s.cached = self._slot_for(list(s.prompt), s.draft and vision_prefix.reusable(s.vision, media_key),
++                                                cache_key=media_key)
+         if self.w.comm is None:
+             try:
+                 if not self._grow(st, len(s.prompt) + self.depth + 2,
+@@ -273,6 +278,8 @@ class MultiDecoder(TwoRanks, Alone, PromptPasses):
+         try:
+             begin = prefill_begin(e, s.prompt, mtp=mtp, resume=resume)
+             image_rows.begin(e, s, self.vision)
++            if self.w.comm is None:
++                st.vision_cache_key = media_key
+         except Exception:
+             self._drop_kept(st)
+             self.free.append(st)
+@@ -281,7 +288,7 @@ class MultiDecoder(TwoRanks, Alone, PromptPasses):
+             e.stops = list(s.stops)
+         else:
+             e.stops = sorted({p for p in self.points(s.prompt) if begin + MIN_GAP <= p < entry_end(s.prompt)}) \
+-                if s.draft and st.image_positions is None and self.points is not None else []
++                if s.draft and vision_prefix.keepable(st) and self.points is not None else []
+         s.sid, s.st = self.next_id, st
+         self.next_id += 1
+         s.prefill_s = time.perf_counter() - t0
+diff --git a/src/tensorfold/families/qwen4_exp/cuda/multi_fill.py b/src/tensorfold/families/qwen4_exp/cuda/multi_fill.py
+index d909da0..7e29037 100644
+--- a/src/tensorfold/families/qwen4_exp/cuda/multi_fill.py
++++ b/src/tensorfold/families/qwen4_exp/cuda/multi_fill.py
+@@ -9,7 +9,7 @@ import torch
+ from tensorfold.cuda.logprobs import capture
+ from tensorfold.cuda.streams import Stream
+ 
+-from . import image_rows
++from . import image_rows, vision_prefix
+ from .decode import _gathered_fits, choose_gathered, entry_end, draft, tp_sample_rows
+ from .forward import Cut, commit, compute, cut_snapshot, stage
+ from .mtp import mtp_compute, mtp_stage
+@@ -122,12 +122,12 @@ class PromptPasses:
+     def _keep_at(s: Stream) -> int | None:
+         """Where a drafting stream's prompt state is kept: one token before its end, which a next turn extends."""
+ 
+-        return entry_end(s.prompt) if s.draft and s.st.image_positions is None else None
++        return entry_end(s.prompt) if s.draft and vision_prefix.keepable(s.st) else None
+ 
+     def _point(self, s: Stream, start: int) -> int | None:
+         """The next message-start or prompt-end snapshot this prompt piece can reach."""
+ 
+-        if not s.draft or s.st.image_positions is not None:
++        if not s.draft or not vision_prefix.keepable(s.st):
+             return None
+         return next((p for p in self.fills[s.sid][0].stops if p > start), self._keep_at(s))
+ 
+diff --git a/src/tensorfold/families/qwen4_exp/cuda/prefixes.py b/src/tensorfold/families/qwen4_exp/cuda/prefixes.py
+index ea8fd04..dc56027 100644
+--- a/src/tensorfold/families/qwen4_exp/cuda/prefixes.py
++++ b/src/tensorfold/families/qwen4_exp/cuda/prefixes.py
+@@ -1,8 +1,9 @@
+ """Select and retain prompt prefixes without consuming a longer chain when a spare slot can hold a copy."""
+ 
+ 
+-def _best(kept, prompt, busy=()):
++def _best(kept, prompt, busy=(), cache_key=None):
+     return max((k for k in kept if id(k[1]) not in busy and len(k[0]) < len(prompt)
++                and k[2].get("vision_cache_key") == cache_key
+                 and prompt[:len(k[0])] == k[0]), key=lambda k: len(k[0]), default=None)
+ 
+ 
+@@ -10,11 +11,11 @@ def _longer(kept, entry):
+     return any(k[1] is entry[1] and len(k[0]) > len(entry[0]) for k in kept)
+ 
+ 
+-def slot_for(owner, prompt: list[int], reuse: bool):
++def slot_for(owner, prompt: list[int], reuse: bool, cache_key=None):
+     """Copy a fork into spare capacity; otherwise retain the released idle-slot and memory-pressure behavior."""
+ 
+     busy = owner._busy()
+-    best = _best(owner.kept, prompt) if reuse else None
++    best = _best(owner.kept, prompt, cache_key=cache_key) if reuse else None
+     fork = best is not None and (id(best[1]) in busy or _longer(owner.kept, best))
+     if fork:
+         if owner.free:
+@@ -28,7 +29,7 @@ def slot_for(owner, prompt: list[int], reuse: bool):
+                 owner._shrink(spare, force=True)
+                 raise
+             owner.free.append(spare)
+-        best = _best(owner.kept, prompt, busy) if reuse else None
++        best = _best(owner.kept, prompt, busy, cache_key=cache_key) if reuse else None
+         if best is not None and owner.free and _longer(owner.kept, best):
+             best = None
+     if best is not None:
+@@ -48,8 +49,10 @@ def slot_for(owner, prompt: list[int], reuse: bool):
+ def remember(owner, ids, st, snap, tail) -> None:
+     """Keep each slot's prefix chain, returning displaced idle slots to the free list."""
+ 
+-    gone = [k[1] for k in owner.kept if k[0] == ids]
+-    owner.kept = [k for k in owner.kept if k[0] != ids] + [(ids, st, snap, tail)]
++    key = snap.get("vision_cache_key")
++    same = lambda k: k[0] == ids and k[2].get("vision_cache_key") == key
++    gone = [k[1] for k in owner.kept if same(k)]
++    owner.kept = [k for k in owner.kept if not same(k)] + [(ids, st, snap, tail)]
+     while len(owner.kept) > owner.keep:
+         gone.append(owner.kept.pop(0)[1])
+     busy = owner._busy()
+diff --git a/src/tensorfold/families/qwen4_exp/cuda/state.py b/src/tensorfold/families/qwen4_exp/cuda/state.py
+index 866b78f..e601e98 100644
+--- a/src/tensorfold/families/qwen4_exp/cuda/state.py
++++ b/src/tensorfold/families/qwen4_exp/cuda/state.py
+@@ -148,6 +148,7 @@ class State:
+         self.pos_dev = torch.zeros((1,), dtype=torch.int32, device=dev)
+         # text after an image prompt rotates at its cache position plus this offset (0: no images, the plain path)
+         self.image_positions, self.image_rows, self.image_features = None, (), None
++        self.vision_cache_key = None
+         self.rope_delta = 0
+         self.rope_delta_dev = torch.zeros((1,), dtype=torch.int32, device=dev)
+         lin = [l for l in w.layers if l.linear]
+@@ -239,6 +240,7 @@ class State:
+         self.set_pos(0)
+         self.set_rope_delta(0)
+         self.image_positions, self.image_rows, self.image_features = None, (), None
++        self.vision_cache_key = None
+         self.mtp_drafted = 0
+         self.set_mtp_len(0)
+ 
+@@ -290,7 +292,11 @@ class State:
+             raise ValueError(f"copy_from: {other.capacity} cache rows do not fit {self.capacity}")
+         for name, value in vars(other).items():
+             mine = getattr(self, name)
+-            if isinstance(value, torch.Tensor):
++            if name in ("image_positions", "image_features"):
++                # Request-local immutable tensors can have different lengths or
++                # an empty destination. Fixed graph-captured buffers stay in place.
++                setattr(self, name, value)
++            elif isinstance(value, torch.Tensor):
+                 into(mine, value)
+             elif isinstance(value, list) and value and isinstance(value[0], torch.Tensor):
+                 for a, b in zip(mine, value):
+@@ -348,7 +354,9 @@ class State:
+         return {"pos": self.pos, "rec": self.rec[p].clone(), "conv": self.conv.clone(),
+                 "ple_tail": self.ple_tail.clone(),
+                 "ple_history": None if self.ple_history is None else self.ple_history.copy(),
+-                "mtp_len": self.mtp_len - self.mtp_drafted}
++                "mtp_len": self.mtp_len - self.mtp_drafted,
++                "image_positions": getattr(self, "image_positions", None), "rope_delta": getattr(self, "rope_delta", 0),
++                "vision_cache_key": getattr(self, "vision_cache_key", None)}
+ 
+     def restore(self, snap: dict) -> None:
+         self.rec[0].copy_(snap["rec"])
+@@ -358,7 +366,9 @@ class State:
+         self.ple_history = None if snap["ple_history"] is None else snap["ple_history"].copy()
+         self.ple_last = None
+         self.set_pos(snap["pos"])
+-        self.set_rope_delta(0)                       # kept prompts are text only
+-        self.image_positions, self.image_rows, self.image_features = None, (), None
++        self.set_rope_delta(snap.get("rope_delta", 0))
++        self.image_positions = snap.get("image_positions")
++        self.image_rows, self.image_features = (), None
++        self.vision_cache_key = snap.get("vision_cache_key")
+         self.mtp_drafted = 0
+         self.set_mtp_len(snap["mtp_len"])
+diff --git a/src/tensorfold/families/qwen4_exp/cuda/vision_prefix.py b/src/tensorfold/families/qwen4_exp/cuda/vision_prefix.py
+new file mode 100644
+index 0000000..4499536
+--- /dev/null
++++ b/src/tensorfold/families/qwen4_exp/cuda/vision_prefix.py
+@@ -0,0 +1,60 @@
++"""Conservative image-aware namespace for FlashNext prefix snapshots.
++
++Only the same complete processed-image history may reuse state. Appended text
++is allowed; adding/replacing/reordering/resizing media is a cache miss. Videos
++keep the upstream cold path. This is not a token-only image-placeholder key.
++"""
++import hashlib
++import json
++import numpy as np
++
++
++def _array(h, value):
++    array = np.ascontiguousarray(value)
++    h.update(json.dumps([array.dtype.str, list(array.shape)], separators=(',', ':')).encode())
++    h.update(memoryview(array).cast('B'))
++
++
++def cache_key(prepared, prompt=None):
++    if prepared is None:
++        return None
++    if any(not hasattr(prepared, name) for name in ('token_ids', 'image_spans', 'image_hashes',
++            'position_ids', 'image_grid_thw', 'pixel_values', 'rope_delta')):
++        return None
++    if prompt is not None and tuple(prepared.token_ids) != tuple(prompt):
++        raise ValueError('Vision preparation belongs to different prompt tokens')
++    if getattr(prepared, 'video_spans', ()) or getattr(prepared, 'video_hashes', ()) or getattr(prepared, 'video_pixel_values', None) is not None:
++        return None
++    spans = tuple(prepared.image_spans)
++    if not spans or len(spans) != len(prepared.image_hashes):
++        return None
++    if prepared.position_ids.shape != (3, 1, len(prepared.token_ids)) or prepared.image_grid_thw.shape != (len(spans), 3):
++        raise ValueError('Invalid visual position/grid shape before cache selection')
++    if prepared.pixel_values.ndim != 2 or any(int(v) != v or v <= 0 for v in prepared.image_grid_thw.flat):
++        raise ValueError('Invalid visual pixels/grid before cache selection')
++    if prepared.pixel_values.shape[0] != sum(int(np.prod(row)) for row in prepared.image_grid_thw):
++        raise ValueError('Pixel rows do not match visual grids')
++    end = max(stop for start, stop in spans)
++    if end > len(prepared.token_ids) or any(start < 0 or stop <= start for start, stop in spans):
++        raise ValueError('Invalid image spans for vision-prefix namespace')
++    h = hashlib.sha256(b'flashnext-vision-prefix-v1\0')
++    h.update(json.dumps([list(prepared.image_hashes), spans, int(prepared.rope_delta)], separators=(',', ':')).encode())
++    _array(h, prepared.image_grid_thw)
++    _array(h, prepared.pixel_values)
++    _array(h, prepared.position_ids[..., :end])
++    return h.hexdigest()
++
++
++def reusable(prepared, key):
++    return prepared is None or key is not None
++
++
++def keepable(state):
++    return state.image_positions is None or getattr(state, 'vision_cache_key', None) is not None
++
++
++def snapshot_metadata(state):
++    # Rotary positions are immutable per request. Reattachment replaces, never
++    # mutates, this tensor. Features are NOT retained after prefill.
++    return {'vision_cache_key': getattr(state, 'vision_cache_key', None),
++            'image_positions': state.image_positions, 'rope_delta': state.rope_delta}
+diff --git a/tests/test_flashnext_vision_prefix.py b/tests/test_flashnext_vision_prefix.py
+new file mode 100644
+index 0000000..8ccf79b
+--- /dev/null
++++ b/tests/test_flashnext_vision_prefix.py
+@@ -0,0 +1,137 @@
++"""CPU identity, admission isolation and rotary restoration for image-prefix reuse."""
++from dataclasses import replace
++from types import SimpleNamespace
++from unittest.mock import patch
++import numpy as np
++import torch
++import pytest
++from tensorfold.vision.qwen_processing import PreparedVisionPrompt
++from tensorfold.families.qwen4_exp.cuda import prefixes, vision_prefix, decode
++from tensorfold.families.qwen4_exp.cuda.state import State
++from tensorfold.families.qwen4_exp.cuda.multi_fill import PromptPasses
++
++
++def prepared(extra=0):
++    n = 12 + extra
++    return PreparedVisionPrompt(tuple(range(n)), np.arange(16,dtype=np.float32).reshape(4,4),
++        np.array([[1,2,2]],dtype=np.int64), np.broadcast_to(np.arange(n,dtype=np.int32),(3,1,n)).copy(),
++        -2, ((3,7),), ('image-a',))
++
++
++def test_text_extension_preserves_media_namespace():
++    assert vision_prefix.cache_key(prepared()) == vision_prefix.cache_key(prepared(8))
++
++
++def test_raw_content_pixel_grid_span_position_and_delta_changes_all_miss():
++    p = prepared(); key = vision_prefix.cache_key(p)
++    variants = [replace(p,image_hashes=('image-b',)), replace(p,pixel_values=p.pixel_values+1),
++                replace(p,image_grid_thw=np.array([[1,4,1]],dtype=np.int64)),
++                replace(p,image_spans=((4,8),)), replace(p,position_ids=p.position_ids+1),
++                replace(p,rope_delta=-1),replace(p,pixel_values=p.pixel_values.astype(np.float64))]
++    assert all(vision_prefix.cache_key(q) != key for q in variants)
++
++
++def test_added_media_has_distinct_namespace():
++    p=prepared(); q=replace(p,image_hashes=('image-a','image-b'),image_spans=((3,7),(8,10)),
++                          image_grid_thw=np.array([[1,2,2],[1,2,2]]),pixel_values=np.concatenate([p.pixel_values,p.pixel_values]))
++    assert vision_prefix.cache_key(p)!=vision_prefix.cache_key(q)
++
++
++def test_video_keeps_cold_path_and_missing_identity_not_reused():
++    p=prepared(); video=replace(p,video_hashes=('clip',))
++    assert vision_prefix.cache_key(video) is None
++    assert not vision_prefix.reusable(video,None)
++    assert vision_prefix.reusable(None,None)
++    missing=replace(p,image_hashes=())
++    assert vision_prefix.cache_key(missing) is None
++    unknown=SimpleNamespace()
++    assert vision_prefix.cache_key(unknown) is None
++    assert not vision_prefix.reusable(unknown,None)
++
++
++def test_prefix_selector_never_crosses_media_or_text_namespaces():
++    ids=[1,2,3]; st=object()
++    entries=[(ids,st,{'vision_cache_key':'a'},None)]
++    assert prefixes._best(entries,ids+[4],cache_key='a') is entries[0]
++    assert prefixes._best(entries,ids+[4],cache_key='b') is None
++    assert prefixes._best(entries,ids+[4]) is None
++    text=[(ids,st,{},None)]
++    assert prefixes._best(text,ids+[4]) is text[0]
++    assert prefixes._best(text,ids+[4],cache_key='a') is None
++
++
++def test_same_token_ids_different_images_coexist_without_displacement():
++    a,b=object(),object(); ids=[1,2]
++    owner=SimpleNamespace(kept=[(ids,a,{'vision_cache_key':'a'},None)],keep=8,free=[],_busy=lambda:set())
++    prefixes.remember(owner,ids,b,{'vision_cache_key':'b'},None)
++    assert len(owner.kept)==2 and owner.free==[]
++
++
++def state():
++    st=object.__new__(State)
++    st.capacity=256;st.kv_dtype='bf16'
++    st.rec=torch.zeros((2,1,1,1,1));st.conv=torch.zeros((1,1,1));st.cur=[0]
++    st.ple_tail=torch.zeros((1,1));st.ple_history=None;st.ple_last=None
++    st.pos_dev=torch.zeros(1,dtype=torch.int32);st.rope_delta_dev=torch.zeros(1,dtype=torch.int32)
++    st.mtp_pos=torch.zeros(1,dtype=torch.int32);st.mtp_len=3;st.mtp_drafted=0
++    st.pos=4;st.rope_delta=-2;st.image_positions=torch.arange(36,dtype=torch.int32).view(12,3)
++    st.vision_cache_key='namespace';st.image_rows=();st.image_features=None
++    return st
++
++
++def test_snapshot_restores_visual_rotary_and_identity_without_features():
++    st=state(); snap=st.snapshot(); target=state()
++    target.rope_delta=0;target.image_positions=None;target.vision_cache_key=None
++    target.restore(snap)
++    assert target.rope_delta==-2 and target.rope_delta_dev.item()==-2
++    assert target.image_positions is snap['image_positions']
++    assert target.vision_cache_key=='namespace' and target.image_features is None
++
++
++def test_restore_legacy_text_snapshot_clears_previous_visual_metadata():
++    st=state(); snap=st.snapshot()
++    for k in ['image_positions','rope_delta','vision_cache_key']:snap.pop(k)
++    st.restore(snap)
++    assert st.image_positions is None and st.rope_delta==0 and st.vision_cache_key is None
++
++
++def test_mtp_tail_absorb_sees_restored_image_rotary_before_reattachment():
++    st=state();snap=st.snapshot();st.image_positions=None;st.rope_delta=0
++    e=SimpleNamespace(st=st,w=SimpleNamespace(mtp=True),mbuf=object(),pbuf=object())
++    def absorb(w,got,pb,tokens,tail):
++        assert got.image_positions is snap['image_positions'] and got.rope_delta==-2
++    with patch.object(decode,'mtp_forward',side_effect=absorb) as call:
++        assert decode.prefill_begin(e,list(range(12)),resume={'state':snap,'tail':'tail'})==4
++        call.assert_called_once()
++
++
++def test_only_keyed_visual_states_are_keepable():
++    st=state();s=SimpleNamespace(st=st,draft=True,prompt=list(range(12)))
++    assert PromptPasses._keep_at(s)==11
++    st.vision_cache_key=None
++    assert PromptPasses._keep_at(s) is None
++
++
++def test_namespace_includes_readonly_arrays_without_mutation():
++    p=prepared(); arrays=[p.pixel_values,p.image_grid_thw,p.position_ids]
++    for a in arrays:a.setflags(write=False)
++    before=[a.copy() for a in arrays]
++    assert vision_prefix.cache_key(p)
++    assert all(np.array_equal(a,b) for a,b in zip(arrays,before))
++
++
++def test_mismatched_prompt_or_geometry_fails_before_cache_selection():
++    p=prepared()
++    for q,prompt in [(p,[999]),(replace(p,position_ids=p.position_ids[:,:,:5]),p.token_ids),
++                     (replace(p,pixel_values=p.pixel_values[:2]),p.token_ids)]:
++        with pytest.raises(ValueError):vision_prefix.cache_key(q,prompt)
++
++
++@pytest.mark.parametrize('destination_visual', [None, torch.zeros((2,3),dtype=torch.int32)])
++def test_dynamic_visual_relocation_preserves_fixed_buffer_addresses(destination_visual):
++    source,target=state(),state();target.image_positions=destination_visual
++    pointers={k:getattr(target,k).data_ptr() for k in ['rec','conv','pos_dev','rope_delta_dev','mtp_pos']}
++    target.copy_from(source)
++    assert target.image_positions is source.image_positions
++    assert target.vision_cache_key==source.vision_cache_key and target.rope_delta==-2
++    assert all(getattr(target,k).data_ptr()==v for k,v in pointers.items())

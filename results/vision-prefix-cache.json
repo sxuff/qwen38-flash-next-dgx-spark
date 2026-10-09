@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "verification_date": "2026-10-09",
+  "runtime_revision": "609ca419abecebdc5a059498a613680bd3aa847f",
+  "patch": {
+    "path": "patches/vision-prefix-cache.patch",
+    "sha256": "32e5e78565b4ac3a9b5f228e9828ab1ffc17d9a646bc037d26825e19a035b9c6"
+  },
+  "serving": {
+    "context_tokens": 262144,
+    "streams": 2,
+    "vision_max_images": 64,
+    "thinking_default": true,
+    "output_default_tokens": 32768
+  },
+  "image_history": {
+    "http_status": 200,
+    "history_image_count": 5,
+    "earlier_turn_images": 4,
+    "current_turn_images": 1,
+    "answer": "red, blue",
+    "finish_reason": "stop",
+    "vision_max_images": 64,
+    "scope": "Five-image history smoke, not a 64-image capacity test; other image guards retained."
+  },
+  "cpu_tests": {
+    "passed": 95,
+    "skipped": 1,
+    "gpu_exposed": false
+  },
+  "live_functional_checks": {
+    "image_cases": [
+      {
+        "label": "vision_cold",
+        "http_status": 200,
+        "answer": "red, blue",
+        "prompt_tokens": 4165,
+        "cached_tokens": 0,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "vision_warm",
+        "http_status": 200,
+        "answer": "red, blue",
+        "prompt_tokens": 4165,
+        "cached_tokens": 4164,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "vision_text_extension",
+        "http_status": 200,
+        "answer": "red, blue",
+        "prompt_tokens": 4196,
+        "cached_tokens": 4164,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "changed_same_size_image",
+        "http_status": 200,
+        "answer": "blue, red",
+        "prompt_tokens": 4165,
+        "cached_tokens": 0,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "changed_image_warm",
+        "http_status": 200,
+        "answer": "blue, red",
+        "prompt_tokens": 4165,
+        "cached_tokens": 4164,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "added_image_history",
+        "http_status": 200,
+        "answer": "blue, red",
+        "prompt_tokens": 4232,
+        "cached_tokens": 0,
+        "finish_reason": "stop"
+      }
+    ],
+    "text_control": [
+      {
+        "label": "text_control_cold",
+        "http_status": 200,
+        "answer": "red",
+        "prompt_tokens": 4117,
+        "cached_tokens": 0,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "text_control_warm",
+        "http_status": 200,
+        "answer": "red",
+        "prompt_tokens": 4117,
+        "cached_tokens": 4116,
+        "finish_reason": "stop"
+      }
+    ],
+    "concurrent_branches": [
+      {
+        "branch": 1,
+        "answer": "red, blue",
+        "cached_tokens": 0,
+        "prompt_tokens": 4201,
+        "finish_reason": "stop"
+      },
+      {
+        "branch": 2,
+        "answer": "red, blue",
+        "cached_tokens": 4169,
+        "prompt_tokens": 4201,
+        "finish_reason": "stop"
+      }
+    ],
+    "final_live_check": [
+      {
+        "label": "final_live_cold",
+        "http_status": 200,
+        "answer": "red blue",
+        "prompt_tokens": 688,
+        "cached_tokens": 0,
+        "finish_reason": "stop"
+      },
+      {
+        "label": "final_live_warm",
+        "http_status": 200,
+        "answer": "red blue",
+        "prompt_tokens": 688,
+        "cached_tokens": 687,
+        "finish_reason": "stop"
+      }
+    ]
+  },
+  "scope": "Functional qualification of the deployed source patch. Not a benchmark, full-window evaluation or 64-image capacity test. Public container CPU build checks are separate from this live source deployment.",
+  "limitations": [
+    "Complete processed-image history must remain unchanged for reuse.",
+    "Changed or added media conservatively misses; videos remain cold.",
+    "Image tower encoding is still performed on every request.",
+    "A busy retained source with no spare slot may safely fall back cold.",
+    "Existing byte, pixel and visual-token limits remain in force."
+  ],
+  "control_provenance": "The text fixture produced the same answer on original, patched cold and patched warm runtimes. Concurrent qualification requires correct complete answers, not a hit from every stream."
+}

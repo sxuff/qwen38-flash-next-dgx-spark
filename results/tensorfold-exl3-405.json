@@ -21,13 +21,22 @@
     "graphs": true,
     "output_default_tokens": 32768,
     "thinking_default": true,
+    "vision_max_images": 64,
+    "vision_prefix_cache": {
+      "policy": "same-complete-media-history-v1",
+      "patch": "patches/vision-prefix-cache.patch",
+      "sha256": "32e5e78565b4ac3a9b5f228e9828ab1ffc17d9a646bc037d26825e19a035b9c6",
+      "functional_receipt": "results/vision-prefix-cache.json"
+    },
     "image_build": {
-      "image_sha256": "169749ac52208beafe013a277a4fc01bced39c74780a685640a3a908bb1763b5",
+      "image_sha256": "57800af8df38493d134283b279dc9ceb9fe1d6769a95e10ed63aaf5bc5d3f2a5",
       "architecture": "arm64",
       "torch": "2.13.0+cu130",
       "triton": "3.7.1",
       "cpu_imports_pass": true,
       "cpu_image_preprocessing_pass": true,
+      "patched_runtime_cpu_tests_passed": 95,
+      "patched_runtime_cpu_tests_skipped": 1,
       "fresh_gpu_model_load_tested": false
     },
     "live_engine_smoke": {
@@ -36,8 +45,10 @@
       "explicit_thinking_override": false,
       "text_pass": true,
       "native_image_pass": true,
+      "vision_prefix_cache_pass": true,
+      "five_image_history_pass": true,
       "context_tokens": 262144,
-      "scope": "The new public smoke client exercised the existing running TensorFold engine. Production was not restarted into the newly built image."
+      "scope": "Both public smoke clients exercised the running source-patched TensorFold engine with thinking and the 64-image cap. Production was not restarted into the newly built public image."
     },
     "scope": "Current serving recipe. The performance panel below used a separate 40K/text-only configuration, not this 262K vision configuration."
   },

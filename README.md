@@ -1,6 +1,6 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **thinking enabled, 262,144-token context, native vision and MTP6**.
+A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **thinking enabled, 262,144-token context, native vision, image-aware prefix caching and MTP6**.
 
 ![Qwen3.8 Flash-Next on one GB10: TensorFold 75.68 versus native ExLlamaV3 67.54 tok/s, +12.0% short-prompt decode, with native ahead on approximately 32K prefill](results/tensorfold-exl3-405-card.png)
 
@@ -9,7 +9,7 @@ A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unifie
 ```text
 Language weights: turboderp/Qwen3.8-Flash-Next-exl3
 Quantization:     4.05bpw_h6_ng6
-Runtime:          TensorFold 0.6.5, pinned source
+Runtime:          TensorFold 0.6.5, pinned source + vision-prefix patch
 Hardware:         one GB10, 128 GB unified memory
 Context:          262,144 tokens
 MTP:              depth 6, confidence 0.70
@@ -19,6 +19,8 @@ N-gram table:     demand-paged, prefetch=False
 Lookup:           off
 CUDA graphs:      on
 Vision:           verified BF16 tower
+Image history:    up to 64 images across the full message history
+Prefix reuse:     unchanged complete processed-image history
 API:              OpenAI-compatible, localhost:8001
 Model ID:         qwen38-flash-next-tf405
 Output default:   32,768 tokens, request-overridable
@@ -73,7 +75,7 @@ Both manifests pin immutable Hub revisions and file sizes. Large payloads use SH
 bash scripts/build_tensorfold.sh
 ```
 
-The build uses an immutable ARM64 CUDA base, PyTorch **2.13.0+cu130**, Triton **3.7.1**, and the pinned TensorFold source. It installs no other inference engine. The command finishes with CPU-side runtime and image-processor imports. CUDA extensions compile on the first model load, with `MAX_JOBS=1`; their cache is retained under `runtime-cache/`.
+The build uses an immutable ARM64 CUDA base, PyTorch **2.13.0+cu130**, Triton **3.7.1**, and the pinned TensorFold source. It verifies and applies [`patches/vision-prefix-cache.patch`](patches/vision-prefix-cache.patch) before installing the runtime; the patch is part of this recipe, not the unmodified upstream release. It installs no other inference engine. The command finishes with CPU-side patched-runtime and image-processor imports. CUDA extensions compile on the first model load, with `MAX_JOBS=1`; their cache is retained under `runtime-cache/`.
 
 ## 4. Start the server
 
@@ -95,13 +97,26 @@ The installer verifies both artifact manifests. It refuses to overwrite an exist
 
 The endpoint is bound to **127.0.0.1:8001**. This recipe does not install an external proxy or publish an unauthenticated API to the network.
 
-## 5. Verify thinking, text and native vision
+## 5. Verify thinking, text, native vision and prefix reuse
 
 ```bash
 python3 scripts/smoke.py --base-url http://127.0.0.1:8001
+python3 scripts/smoke_vision_cache.py --base-url http://127.0.0.1:8001
 ```
 
 The smoke checks model identity, the advertised 262,144-token context, a completed response with nonempty `reasoning_content` and no thinking override, a real text response and a generated two-color image. The latter two checks explicitly disable thinking to isolate text and vision behavior. The image prompt does not name the colors. Passing this check establishes functional thinking, text and native image input, not full-window quality.
+
+Run the cache smoke on an idle server. It requires a cold image request, a repeated-image hit with an identical answer, an appended-text hit, a changed-image miss followed by a hit, and a completed five-image history. Usage is read from `usage.prompt_tokens_details.cached_tokens`. Its short requests explicitly disable thinking to isolate cache behavior. The five-image check verifies that the old four-image admission cap is gone; it is not a 64-image capacity test.
+
+### Image-history caching
+
+The limit of **64 images counts the entire submitted message history**, not just the latest turn. Byte, pixel and visual-token safeguards still apply. Long coding sessions can replay earlier screenshots without hitting the old four-image cap.
+
+The patch caches **language-model prefix state for unchanged complete processed-image history**. Text appended after the images can reuse it. The cache key includes image content, processed pixels, layout and rotary metadata, so identical placeholder tokens cannot reuse a different screenshot's state. Changed, resized, reordered or added images conservatively miss. Videos remain on the cold path. The image tower still encodes the images on each request.
+
+Two concurrent requests can return correct answers even when only one hits: a busy retained source with no spare slot safely falls back to a cold prefill. Cache reuse is automatic server-side; no client cache switch is required. Clients must preserve the image content and prompt prefix to reuse them.
+
+The deployed source patch passed **95 CPU tests, with 1 skipped**, plus live same-image, appended-text, changed-image, text-cache and concurrent-stream functional checks. Exact counts and answers are retained in [`results/vision-prefix-cache.json`](results/vision-prefix-cache.json). These checks do not change the benchmark figures below and do not establish full-window or exhaustive sparse-cache correctness.
 
 Example request:
 
@@ -115,7 +130,7 @@ The output default is 32,768 tokens when a request omits its own cap. `max_token
 
 **Thinking is enabled by default.** Chat responses return it in `reasoning_content`, separately from the answer in `content`; streamed responses use the corresponding delta fields. Reasoning and the answer share the output token budget. A client must support that field to display thinking traces. To disable thinking for an individual request, send `"chat_template_kwargs":{"enable_thinking":false}`. Requests that omit the switch retain thinking.
 
-After pulling this update, rebuild with `bash scripts/build_tensorfold.sh` and restart an existing deployment so the container uses the updated launcher.
+After pulling this update, rebuild with `bash scripts/build_tensorfold.sh` and restart an existing deployment at an idle boundary so the container uses both the patched runtime and the updated 64-image launcher. The image tag stays the same; a pull alone does not update an already-running container.
 
 ## Measured comparison
 

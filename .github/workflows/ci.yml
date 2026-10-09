@@ -19,5 +19,15 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Shell syntax
         run: bash -n scripts/*.sh
+      - name: Patch applies to the pinned runtime
+        run: |
+          git init "$RUNNER_TEMP/tensorfold"
+          git -C "$RUNNER_TEMP/tensorfold" remote add origin https://github.com/ashhart/TensorFold.git
+          git -C "$RUNNER_TEMP/tensorfold" fetch --depth 1 origin 609ca419abecebdc5a059498a613680bd3aa847f
+          git -C "$RUNNER_TEMP/tensorfold" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/tensorfold" rev-parse HEAD)" = 609ca419abecebdc5a059498a613680bd3aa847f
+          git -C "$RUNNER_TEMP/tensorfold" apply --check --whitespace=error-all "$GITHUB_WORKSPACE/patches/vision-prefix-cache.patch"
+          git -C "$RUNNER_TEMP/tensorfold" apply "$GITHUB_WORKSPACE/patches/vision-prefix-cache.patch"
+          git -C "$RUNNER_TEMP/tensorfold" apply --reverse --check "$GITHUB_WORKSPACE/patches/vision-prefix-cache.patch"
       - name: Diff hygiene
         run: git diff --check

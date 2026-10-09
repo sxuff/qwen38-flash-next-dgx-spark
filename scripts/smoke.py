@@ -11,9 +11,10 @@ import zlib
 MODEL = "qwen38-flash-next-tf405"
 
 
-def two_colors():
+def two_colors(reverse=False):
     width, height = 256, 128
-    raw = b"".join(b"\0" + b"\xff\0\0"*(width//2) + b"\0\0\xff"*(width//2) for _ in range(height))
+    left, right = (b"\0\0\xff", b"\xff\0\0") if reverse else (b"\xff\0\0", b"\0\0\xff")
+    raw = b"".join(b"\0" + left*(width//2) + right*(width//2) for _ in range(height))
     def chunk(kind, data):
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind+data))
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
