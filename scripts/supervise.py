@@ -47,7 +47,19 @@ def validate_artifacts(model, tower):
         raise ValueError("Expected the manifest's BF16 tower filename")
 
 
-def docker_command(model, tower, cache, name, port, cidfile, *, prefill_kernels=False):
+def minimum_preload_available(prefill_kernels=True):
+    return MINIMUM_PRELOAD_AVAILABLE + (PROMPT_WORKSPACE_EXTRA if prefill_kernels else 0)
+
+
+def validate_image(image, *, prefill_kernels=True):
+    labels = image["Config"].get("Labels") or {}
+    if labels.get("qwen.runtime.revision") != "609ca419abecebdc5a059498a613680bd3aa847f":
+        raise SystemExit("Runtime image pin mismatch")
+    if prefill_kernels and labels.get("qwen.prompt-expert.patch.sha256") != "bf884015181a1241b4038b25fdafff0f7d4887ce5725f112d99ba2f460f309fa":
+        raise SystemExit("Prompt-kernel image patch mismatch; rebuild this recipe first")
+
+
+def docker_command(model, tower, cache, name, port, cidfile, *, prefill_kernels=True):
     return ["docker", "run", "--rm", "--name", name, "--cidfile", str(cidfile),
             "--label", "qwen.recipe=" + LABEL, "--gpus", "all", "--memory", "112g",
             "--memory-swap", "112g", "--shm-size", "2g", "--read-only",
@@ -87,7 +99,11 @@ def main(argv=None):
     p.add_argument("vision_weights", type=Path)
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--prefill-kernels", action="store_true", help="Opt in to the screened PR212 prompt-only expert kernels")
+    kernels = p.add_mutually_exclusive_group()
+    kernels.add_argument("--prefill-kernels", dest="prefill_kernels", action="store_true", default=True,
+                         help="Compatibility flag: prompt-only expert kernels are on by default")
+    kernels.add_argument("--legacy-prefill-kernels", dest="prefill_kernels", action="store_false",
+                         help="Use the legacy prompt expert path")
     a = p.parse_args(argv)
     if not 1 <= a.port <= 65535:
         p.error("port outside 1..65535")
@@ -99,7 +115,7 @@ def main(argv=None):
         return 0
     validate_artifacts(model, tower)
     baseline = sample(model)
-    minimum = MINIMUM_PRELOAD_AVAILABLE + (PROMPT_WORKSPACE_EXTRA if a.prefill_kernels else 0)
+    minimum = minimum_preload_available(a.prefill_kernels)
     if baseline["mem_available"] < minimum:
         raise SystemExit("Insufficient preload headroom. Another model may still be resident; no service was stopped.")
     reason = breach(baseline, baseline)
@@ -109,10 +125,7 @@ def main(argv=None):
     if existing.stdout.strip():
         raise SystemExit("Recipe container already exists. Refusing to replace or kill it.")
     image = json.loads(subprocess.check_output(["docker", "image", "inspect", IMAGE], text=True))[0]
-    if image["Config"].get("Labels", {}).get("qwen.runtime.revision") != "609ca419abecebdc5a059498a613680bd3aa847f":
-        raise SystemExit("Runtime image pin mismatch")
-    if a.prefill_kernels and image["Config"].get("Labels", {}).get("qwen.prompt-expert.patch.sha256") != "bf884015181a1241b4038b25fdafff0f7d4887ce5725f112d99ba2f460f309fa":
-        raise SystemExit("Prompt-kernel image patch mismatch; rebuild this recipe first")
+    validate_image(image, prefill_kernels=a.prefill_kernels)
     cache.mkdir(exist_ok=True)
     for folder in ["home", "torch-extensions", "triton"]:
         (cache / folder).mkdir(exist_ok=True)

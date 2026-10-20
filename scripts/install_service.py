@@ -16,10 +16,9 @@ def systemd_quote(value):
     return '"' + value.replace("%", "%%").replace("$", "$$").replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def render(model, tower, *, prefill_kernels=False):
+def render(model, tower, *, prefill_kernels=True):
     argv = ["/usr/bin/python3", ROOT / "scripts/supervise.py", model, tower]
-    if prefill_kernels:
-        argv.append("--prefill-kernels")
+    argv.append("--prefill-kernels" if prefill_kernels else "--legacy-prefill-kernels")
     command = " ".join(systemd_quote(x) for x in argv)
     return f"""[Unit]
 Description=Qwen3.8 Flash-Next TensorFold EXL3 4.05
@@ -43,7 +42,11 @@ def main(argv=None):
     p.add_argument("model_root", type=Path)
     p.add_argument("vision_weights", type=Path)
     p.add_argument("--dry-run", action="store_true")
-    p.add_argument("--prefill-kernels", action="store_true")
+    kernels = p.add_mutually_exclusive_group()
+    kernels.add_argument("--prefill-kernels", dest="prefill_kernels", action="store_true", default=True,
+                         help="Compatibility flag: prompt-only expert kernels are on by default")
+    kernels.add_argument("--legacy-prefill-kernels", dest="prefill_kernels", action="store_false",
+                         help="Install a unit using the legacy prompt expert path")
     a = p.parse_args(argv)
     model, tower = a.model_root.expanduser().resolve(), a.vision_weights.expanduser().resolve()
     if tower.name != "vision_tower_bf16.safetensors":

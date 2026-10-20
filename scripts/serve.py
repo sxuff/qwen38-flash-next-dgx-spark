@@ -11,8 +11,10 @@ MODEL_ID = "qwen38-flash-next-tf405"
 RUNTIME_SHA = "609ca419abecebdc5a059498a613680bd3aa847f"
 
 
-def prefill_kernel_enabled():
-    value = os.environ.get("QWEN_PREFILL_KERNEL", "0")
+def prefill_kernel_enabled(override=None):
+    if override is not None:
+        return override
+    value = os.environ.get("QWEN_PREFILL_KERNEL", "1")
     if value not in ("0", "1"):
         raise ValueError("QWEN_PREFILL_KERNEL must be exactly 0 or 1")
     return value == "1"
@@ -30,6 +32,11 @@ def parse_args(argv=None):
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--print-config", action="store_true")
+    kernels = p.add_mutually_exclusive_group()
+    kernels.add_argument("--prefill-kernels", dest="prefill_kernels", action="store_true", default=None,
+                         help="Compatibility flag: prompt-only expert kernels are on by default")
+    kernels.add_argument("--legacy-prefill-kernels", dest="prefill_kernels", action="store_false",
+                         help="Use the legacy prompt expert path")
     a = p.parse_args(argv)
     if not 1 <= a.port <= 65535:
         p.error("port outside 1..65535")
@@ -41,7 +48,7 @@ def main(argv=None):
     config = dict(model_id=MODEL_ID, runtime_revision=RUNTIME_SHA, engine=engine_options(),
                   host=a.host, port=a.port, output_default_tokens=32768, thinking_default=True,
                   vision_max_images=64, vision_prefix_cache="same-complete-media-history-v1",
-                  prompt_expert_kernels=prefill_kernel_enabled())
+                  prompt_expert_kernels=prefill_kernel_enabled(a.prefill_kernels))
     if a.print_config:
         print(json.dumps(config, indent=2))
         return 0
@@ -50,6 +57,8 @@ def main(argv=None):
     raw = json.loads((a.model / "config.json").read_text())
     if raw.get("model_type") != "qwen4_exp" or raw.get("quantization_config", {}).get("quant_method") != "exl3":
         raise SystemExit("Expected the pinned qwen4_exp EXL3 checkpoint")
+    # The pinned runtime itself defaults off: set the effective mode before import/load.
+    os.environ["QWEN_PREFILL_KERNEL"] = "1" if config["prompt_expert_kernels"] else "0"
     os.environ["TENSORFOLD_VISION_WEIGHTS"] = str(a.vision_weights.resolve())
     os.environ.setdefault("TENSORFOLD_MEMORY_RESERVE_GIB", "7")
     os.environ.setdefault("TENSORFOLD_NO_UPDATE_CHECK", "1")

@@ -5,6 +5,13 @@
   "branch": "4.05bpw_h6_ng6",
   "total_bytes": 107463600896,
   "reserve_bytes": 21474836480,
+  "serving_defaults": {
+    "prompt_expert_kernels": true,
+    "compatibility_flag": "--prefill-kernels",
+    "legacy_fallback_flag": "--legacy-prefill-kernels",
+    "qualification": "E2 prompt versus legacy, 33 requests per arm, medians of 3 repetitions; identical paired token IDs and all five decode cells within 3 percent",
+    "scope": "Descriptive recipe metadata only; downloaded revision and file inventory are unchanged"
+  },
   "files": [
     {
       "path": ".gitattributes",

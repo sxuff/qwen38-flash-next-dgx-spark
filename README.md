@@ -1,10 +1,8 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
-A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **thinking enabled, 262,144-token context, native vision, image-aware prefix caching and MTP6**.
+A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **prompt-only expert kernels on, thinking enabled, 262,144-token context, native vision, image-aware prefix caching and MTP6**.
 
-The update adds **opt-in prompt-only expert kernels**. A matched one-pass screen improved prefix-uncached 32K/64K prefill rates by **49.9%–135.1%**, with **−0.47% to +0.13%** decode changes across five estimable cells. This is a screened candidate, not an automatic live promotion.
-
-![Qwen3.8 Flash-Next on DGX Spark: before/after TTFT and native prefill rates for 32K and 64K code and prose, one-pass prefix-uncached screen](results/prefill-screen.png)
+**Faster prefill, unchanged weights and runtime.** A matched three-repeat comparison qualified prompt kernels with 33 requests per arm, identical output token IDs on all 33 pairs, and five decode changes within 3%. Prefill improved **128.4%–135.6%** across 8K/32K/64K code and prose. At 64K code, native prefill rose **668 → 1,568 tok/s** and TTFT fell **98.54 → 42.02 seconds**. This is a prefill and TTFT improvement, not a decode-speed claim. [Measured results](results/prefill-repeat.md).
 
 ## The recipe
 
@@ -12,7 +10,7 @@ The update adds **opt-in prompt-only expert kernels**. A matched one-pass screen
 Language weights: turboderp/Qwen3.8-Flash-Next-exl3
 Quantization:     4.05bpw_h6_ng6
 Runtime:          TensorFold 0.6.5, pinned source + vision-prefix/prompt patches
-Prompt kernels:   opt-in (--prefill-kernels); legacy path remains the default
+Prompt kernels:   on by default; --legacy-prefill-kernels selects the fallback
 Hardware:         one GB10, 128 GB unified memory
 Context:          262,144 tokens
 MTP:              depth 6, confidence 0.70
@@ -100,21 +98,23 @@ The installer verifies both artifact manifests. It refuses to overwrite an exist
 
 The endpoint is bound to **127.0.0.1:8001**. This recipe does not install an external proxy or publish an unauthenticated API to the network.
 
-## Optional: screened prompt-only expert kernels
+## Prompt-only expert kernels: default and fallback
 
-After rebuilding, opt in at an idle maintenance boundary:
+The unflagged foreground and service-install commands above select prompt kernels. `--prefill-kernels` remains accepted for compatibility and explicitly selects the same mode. To select the legacy prompt expert path at a future idle maintenance boundary:
 
 ```bash
-bash scripts/run_server.sh "$MODEL_ROOT" "$VISION_WEIGHTS" --prefill-kernels
+bash scripts/run_server.sh "$MODEL_ROOT" "$VISION_WEIGHTS" --legacy-prefill-kernels
+# Or, for a new service installation only:
+bash scripts/install_service.sh "$MODEL_ROOT" "$VISION_WEIGHTS" --legacy-prefill-kernels
 ```
 
-For a new user-service installation, add the same flag to `scripts/install_service.sh`. The installer still refuses to overwrite an existing unit and does not start it implicitly. Omitting the flag retains the incumbent kernel path. The launcher passes an explicit `QWEN_PREFILL_KERNEL=0/1`, validates the image patch checksum for opt-in launches, and does not inherit an accidental host switch.
+The installer still refuses to overwrite an existing unit and does not start it implicitly. Generated units pin the selected mode explicitly. The launcher passes `QWEN_PREFILL_KERNEL=1` by default or `0` for the legacy fallback and does not inherit an accidental host switch. Default and compatibility launches require the image label `qwen.prompt-expert.patch.sha256=bf884015181a1241b4038b25fdafff0f7d4887ce5725f112d99ba2f460f309fa`; an older image fails closed and must be rebuilt. The runtime revision check applies in both modes. Direct `scripts/serve.py` use also defaults on, honors an explicit `QWEN_PREFILL_KERNEL=0/1`, and accepts both mutually exclusive flags, which override that environment variable.
 
-This integrates **grearjake-star's original [TensorFold PR212](https://github.com/ashhart/TensorFold/pull/212)** at `f28b49f6e91b1789e25345875d61c5e663c19b1a`. The PR was closed and unmerged at inspection. Larger explicit prompt windows (>64 rows) use the prompt expert kernels; decode and MTP verification remain on the legacy path. The prompt scratch window is 2048 rows instead of 1024, with the extra plan allocated before graph capture. The native capacity-plan difference is approximately **458 MiB**, included in launcher admission. Context, weights, tokenizer/template, routing, BF16 KV, MTP6/confidence, two streams, vision and prefix-cache features are unchanged.
+This integrates **grearjake-star's original [TensorFold PR212](https://github.com/ashhart/TensorFold/pull/212)** at `f28b49f6e91b1789e25345875d61c5e663c19b1a`. The PR was closed and unmerged at inspection. Larger explicit prompt windows (>64 rows) use the prompt expert kernels; decode and MTP verification remain on the legacy path. The prompt scratch window is 2048 rows instead of 1024, with the extra plan allocated before graph capture. The native capacity-plan difference is **480,285,400 bytes**, approximately **458 MiB**, included in launcher admission by default. Minimum preload available memory is **96,700,886,352 bytes** with prompt kernels versus **96,220,600,952 bytes** with the legacy fallback. Context, downloaded weight pin/file inventory, tokenizer/template, routing, BF16 KV, MTP6/confidence, two streams, vision and prefix-cache features are unchanged. Continuous reserve, swap and disk guards are unchanged.
 
-Selective n-gram read-ahead from PR252 was also screened. It improved fault-heavy prompt cells but lost 6.06%–7.76% on four short decode prompts. **It is not shipped or enabled in this update.** Source integration is credited to the original author; the matched local screen is our measurement, not an invention of the upstream kernels.
+Source integration is credited to the original author; the local comparison measures the upstream prompt kernels rather than claiming their invention.
 
-A pull does not change an already-running container. Rebuild and choose an idle restart explicitly. The experiment ended with the original deployment restored; publication does not promote the candidate automatically.
+A pull does not change an already-running container or installed unit. Rebuild and choose an idle restart explicitly. The installer does not overwrite an existing service or restart it implicitly.
 
 ## 5. Verify thinking, text, native vision and prefix reuse
 
@@ -149,9 +149,42 @@ The output default is 32,768 tokens when a request omits its own cap. `max_token
 
 **Thinking is enabled by default.** Chat responses return it in `reasoning_content`, separately from the answer in `content`; streamed responses use the corresponding delta fields. Reasoning and the answer share the output token budget. A client must support that field to display thinking traces. To disable thinking for an individual request, send `"chat_template_kwargs":{"enable_thinking":false}`. Requests that omit the switch retain thinking.
 
-After pulling this update, rebuild with `bash scripts/build_tensorfold.sh` and restart an existing deployment at an idle boundary so the container uses both the patched runtime and the updated 64-image launcher. The image tag stays the same; a pull alone does not update an already-running container.
+For an existing deployment, rebuild with `bash scripts/build_tensorfold.sh` and restart at an idle boundary so the container uses the patched runtime and launcher. The image tag stays the same; a pull alone does not update an already-running container.
 
-## Fresh matched prefill screen
+## Matched three-repeat prefill results
+
+**Before = legacy; after = prompt kernels.** Both use EXL3 4.05/NG6, 262,144-token context, BF16 KV, MTP6/confidence 0.70, two streams and native vision. Each arm completed **33/33** requests: 12 short-decode requests, 3 long-context decode requests and 18 one-token prefill requests. This comparison measures timing and output identity, not a new task-quality panel.
+
+### Prefix-uncached, page state uncontrolled: medians of 3 repetitions
+
+| Prompt | TTFT before | TTFT after | Native prefill before | Native prefill after | Rate gain |
+|---|---:|---:|---:|---:|---:|
+| 8K code | 11.669 s | 4.979 s | 726.69 tok/s | 1711.77 tok/s | +135.6% |
+| 8K prose | 11.516 s | 4.921 s | 739.13 tok/s | 1733.94 tok/s | +134.6% |
+| ~32K code | 46.260 s | 19.990 s | 697.64 tok/s | 1616.17 tok/s | +131.7% |
+| ~32K prose | 45.273 s | 19.844 s | 717.24 tok/s | 1638.42 tok/s | +128.4% |
+| 64K code | 98.544 s | 42.015 s | 668.15 tok/s | 1568.19 tok/s | +134.7% |
+| 64K prose | 97.361 s | 41.664 s | 676.29 tok/s | 1581.57 tok/s | +133.9% |
+
+TTFT is request start to the first emitted sample. Native prefill rates include first-token sampling and are not isolated GPU kernel throughput or prompt-tokens/TTFT proxies. Each column is its own per-cell median over 3 repetitions. Prefix reuse was cleared between requests, but page residency was uncontrolled: **no cold-performance claim**. The retained ~32K fixtures contain 32,020 code and 32,196 prose prompt tokens.
+
+| Post-first-emission decode cell | Before median | After median | Change |
+|---|---:|---:|---:|
+| Short code | 86.03 tok/s | 85.59 tok/s | -0.52% |
+| Short math | 79.69 tok/s | 79.54 tok/s | -0.19% |
+| Short prose | 56.85 tok/s | 56.84 tok/s | -0.02% |
+| Short structured | 80.71 tok/s | 80.81 tok/s | +0.11% |
+| 64K prose context | 90.54 tok/s | 90.91 tok/s | +0.40% |
+
+These are also medians of 3 repetitions, with 400 generated tokens per request. All five changes meet the within-3% gate, not statistical equivalence. Output token-ID sequences matched on **33/33** paired requests, including the 18 one-token probes. This is bounded same-runtime identity evidence, not universal losslessness, full-window correctness or a new complete-answer quality result.
+
+Exact values, counts, row-file hashes, paired token IDs and the default qualification: [`results/prefill-repeat.json`](results/prefill-repeat.json). [Measurement report](results/prefill-repeat.md). Only the prompt-kernel default changes. The NG6 checkpoint, pinned runtime, and safety policy are retained.
+
+## Historical one-pass matched prefill screen
+
+This earlier opt-in screen and its image are preserved as historical evidence, not the current three-repetition results above.
+
+![Historical one-pass prefix-uncached screen: before/after TTFT and native prefill rates for 32K and 64K code and prose](results/prefill-screen.png)
 
 **Before = fresh incumbent A; after = A plus prompt-only kernels B.** Both use the same deployed EXL3 4.05 language weights, **262,144-token context, BF16 KV, MTP6/confidence 0.70, two streams and native vision enabled**. Unlike the historical runtime comparison below, this is a matched source treatment. One measured sweep per condition; no repeats or parameter fishing.
 
@@ -164,7 +197,7 @@ After pulling this update, rebuild with `bash scripts/build_tensorfold.sh` and r
 | 64K code | 98.50 s | 41.93 s | 668.41 tok/s | 1571.53 tok/s | +135.1% |
 | 64K prose | 97.27 s | 41.73 s | 676.97 tok/s | 1579.07 tok/s | +133.3% |
 
-Rates come directly from the native engine and include first-token sampling. They are **not isolated GPU kernel throughput** or TTFT-derived rates. File-scoped clean-page advice was attempted, but eviction/residency was not verified. The 64K advised cells had few or zero major faults and must not be called cold results. Warm prefix-uncached counterparts also improved; all 8K/32K/64K code/prose cells and the read-ahead arm are in the receipt/report, including losses.
+Rates come directly from the native engine and include first-token sampling. They are **not isolated GPU kernel throughput** or TTFT-derived rates. File-scoped clean-page advice was attempted, but eviction/residency was not verified. The 64K advised cells had few or zero major faults and must not be called cold results. Warm prefix-uncached counterparts also improved; all 8K/32K/64K code/prose cells are retained in the historical receipt/report.
 
 Post-first-emission decode changes versus A: code **+0.13%**, math **+0.02%**, prose **−0.45%**, structured **−0.47%**, 64K prose context **−0.17%**. These five cells emitted 400 tokens and hit the shared cap. The 32K code context emitted one EOS token in all arms, so its decode rate is unavailable. Within 3% is provisionally neutral in this screen, not statistical equivalence.
 
