@@ -1,5 +1,13 @@
 # Qwen3.8 Flash-Next on one DGX Spark or ASUS Ascent GX10
 
+## Run it
+
+```bash
+git clone https://github.com/sxuff/qwen38-flash-next-dgx-spark && cd qwen38-flash-next-dgx-spark && ./run.sh
+```
+
+Expected: **1,568 tok/s** prefill at 64K code (668 tok/s before the prompt kernels); this repo makes a prefill and TTFT claim, not a decode-speed claim — receipt: [`results/prefill-repeat.json`](results/prefill-repeat.json)
+
 A **TensorFold EXL3 4.05** serving recipe for one NVIDIA GB10 with 128 GB unified memory. The default is **prompt-only expert kernels on, thinking enabled, 262,144-token context, native vision, image-aware prefix caching and MTP6**.
 
 **Faster prefill, unchanged weights and runtime.** A matched three-repeat comparison qualified prompt kernels with 33 requests per arm, identical output token IDs on all 33 pairs, and five decode changes within 3%. Prefill improved **128.4%–135.6%** across 8K/32K/64K code and prose. At 64K code, native prefill rose **668 → 1,568 tok/s** and TTFT fell **98.54 → 42.02 seconds**. This is a prefill and TTFT improvement, not a decode-speed claim. [Measured results](results/prefill-repeat.md).
