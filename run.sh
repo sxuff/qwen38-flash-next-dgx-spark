@@ -218,8 +218,8 @@ say "Machine"
 command -v nvidia-smi >/dev/null || die "nvidia-smi not found"
 GPU="$(nvidia-smi --query-gpu=name,compute_cap --format=csv,noheader | head -1)"
 case "$GPU" in *GB10*", 12.1") ok "GPU: $GPU" ;; *) die "measured on an NVIDIA GB10 (SM121); found: ${GPU:-none}" ;; esac
-for t in $NEEDS_TOOLS; do command -v "$t" >/dev/null || die "missing tool: $t"; done
-ok "tools: $NEEDS_TOOLS"
+MISSING=""; for t in $NEEDS_TOOLS; do command -v "$t" >/dev/null || MISSING="$MISSING $t"; done
+if [ -n "$MISSING" ]; then fail "missing tool(s):$MISSING"; else ok "tools: $NEEDS_TOOLS"; fi
 ALREADY=0; server_running && ALREADY=1
 MEM_AVAIL=$(( $(awk '/MemAvailable/ {print $2}' /proc/meminfo) * 1024 ))
 if [ "$ALREADY" = 1 ]; then ok "server already running; memory check skipped"
